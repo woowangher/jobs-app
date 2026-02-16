@@ -137,3 +137,27 @@ async function main() {
 }
 
 main();
+
+async function loadJobs() {
+  const res = await fetch("/api/jobs");
+  const json = await res.json();
+
+  if (!json.ok) {
+    document.body.innerHTML = "<h2>데이터 불러오기 실패</h2>";
+    return;
+  }
+
+  const items = json.data.result.slice(0, 3); // 3개만 테스트
+
+  let html = "<h2>채용공고 테스트</h2><ul>";
+
+  items.forEach(job => {
+    html += `<li>${job.recrutPbancTtl}</li>`;
+  });
+
+  html += "</ul>";
+
+  document.body.innerHTML = html;
+}
+
+loadJobs();
