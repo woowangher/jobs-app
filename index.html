@@ -1,0 +1,57 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Job Board" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+  <title>Job Board PWA</title>
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <h1>Recruit Openings</h1>
+      <p class="sub">Install to home screen on iPhone for app-like use.</p>
+    </header>
+
+    <section class="filters" aria-label="Job filters">
+      <label>
+        Region
+        <select id="regionFilter">
+          <option value="all">All</option>
+          <option value="seoul">Seoul</option>
+          <option value="gyeonggi">Gyeonggi</option>
+        </select>
+      </label>
+
+      <label>
+        Employment
+        <select id="typeFilter">
+          <option value="all">All</option>
+          <option value="regular">Regular</option>
+          <option value="intern">Intern</option>
+        </select>
+      </label>
+
+      <label class="searchLabel">
+        Search
+        <input id="searchInput" type="search" placeholder="title, company, keyword" />
+      </label>
+    </section>
+
+    <section id="installTip" class="tip" hidden>
+      On iPhone Safari: Share -> Add to Home Screen
+    </section>
+
+    <section id="resultMeta" class="resultMeta" aria-live="polite"></section>
+    <section id="jobList" class="jobList" aria-live="polite"></section>
+  </main>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
