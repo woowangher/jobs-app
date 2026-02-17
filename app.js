@@ -27,22 +27,43 @@ const state = {
 };
 
 async function loadJobs() {
-  if (!API_URL) {
-    return DUMMY_JOBS;
-  }
-
   try {
-    const res = await fetch(API_URL, { headers: { "Accept": "application/json" } });
+    const res = await fetch(API_URL, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.jobs)) return data.jobs;
-    throw new Error("Unexpected API response shape");
+
+    const json = await res.json();
+    const arr = json?.data?.result;
+    if (!Array.isArray(arr)) throw new Error("Unexpected API response shape");
+
+    // 화면 렌더용으로 최소 변환 (기존 render()가 job.title/company/region/type을 쓰는 구조라서 맞춰줌)
+    return arr.map((j, idx) => {
+      const regionName = String(j.workRgnNmLst || "");
+      const region =
+        regionName.includes("서울") ? "seoul" :
+        regionName.includes("경기") ? "gyeonggi" :
+        "all";
+
+      const typeName = String(j.hireTypeNmLst || "");
+      const type =
+        typeName.includes("정규") ? "regular" :
+        typeName.includes("인턴") ? "intern" :
+        "regular";
+
+      return {
+        id: j.recrutPblntSn ?? idx,
+        title: j.recrutPbancTtl ?? "",
+        company: j.instNm ?? "",
+        region,
+        type,
+        keywords: []
+      };
+    });
   } catch (err) {
-    console.error("API load failed, fallback to dummy:", err);
-    return DUMMY_JOBS;
+    console.error("API load failed:", err);
+    return []; // 실패 시 더미로 떨어지지 않게!
   }
 }
+
 
 function normalize(text) {
   return String(text || "").toLowerCase();
@@ -137,23 +158,6 @@ async function main() {
 }
 
 main();
-
-async function loadJobs() {
-  const res = await fetch("/api/jobs");
-  const json = await res.json();
-
-  if (!json.ok) {
-    document.body.innerHTML = "<h2>데이터 불러오기 실패</h2>";
-    return;
-  }
-
-  const items = json.data.result.slice(0, 3); // 3개만 테스트
-
-  let html = "<h2>채용공고 테스트</h2><ul>";
-
-  items.forEach(job => {
-    html += `<li>${job.recrutPbancTtl}</li>`;
-  });
 
   html += "</ul>";
 
