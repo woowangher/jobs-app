@@ -1,5 +1,5 @@
 ﻿// Replace this URL later with your Worker endpoint (e.g. https://...workers.dev/jobs)
-const API_URL = "";
+const API_URL = "/api/jobs";
 
 const DUMMY_JOBS = [
   { id: 1, title: "Frontend Engineer", company: "Aster Labs", region: "seoul", type: "regular", keywords: ["react", "typescript"] },
