@@ -1,4 +1,5 @@
-﻿const els = {
+﻿console.log("APP.JS LOADED ✅");
+const els = {
   list: document.getElementById("jobList"),
   meta: document.getElementById("resultMeta")
 };
