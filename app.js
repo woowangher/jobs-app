@@ -3,7 +3,7 @@
 async function loadJobs() {
   try {
     console.log("[STEP] loadJobs start");                 //테스트용
-    
+
     const res = await fetch(API_URL, { cache: "no-store" });
     const data = await res.json();
     
@@ -19,8 +19,6 @@ async function loadJobs() {
     const jobs = data.data?.result || [];
     const loaded = data.data?.totalCount ?? jobs.length;
 
-    const jobs = data.data?.result || [];
-    const total = data.data?.totalCount ?? jobs.length;
 
     const root = document.getElementById("jobs");       //테스트용
 
