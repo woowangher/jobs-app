@@ -17,7 +17,7 @@ async function loadJobs() {
     }
 
     const jobs = data.data?.result || [];
-    const loaded = data.data?.totalCount ?? jobs.length;
+    const total = data.data?.totalCount ?? jobs.length;
 
 
     const root = document.getElementById("jobs");       //테스트용
