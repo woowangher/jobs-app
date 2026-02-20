@@ -3,7 +3,7 @@
 let __allJobs = [];
 
 /* ---------- 카드 렌더 함수 ---------- */
-function renderJobs(jobs) {
+function renderJobs(jobs, q = "") {
   const container = document.getElementById("jobs-grid");
   if (!container) return;
 
@@ -24,8 +24,8 @@ function renderJobs(jobs) {
     const period = `${job.pbancBgngYmd || ""} ~ ${job.pbancEndYmd || ""}`.trim();
 
     card.innerHTML = `
-      <h3 style="margin:0 0 6px 0;">${title}</h3>
-      <p style="margin:0 0 6px 0;"><b>${company}</b></p>
+      <h3 style="margin:0 0 6px 0;">${highlight(title, q)}</h3>
+      <p style="margin:0 0 6px 0;"><b>${highlight(company, q)}</b></p>
       <p style="margin:0 0 6px 0; color:#666;">${region}</p>
       <p style="margin:0 0 10px 0; color:#666;">${recruitType}${hireType ? " · " + hireType : ""}</p>
       <p style="margin:0 0 10px 0; color:#666;">${period}</p>
@@ -34,6 +34,16 @@ function renderJobs(jobs) {
 
     container.appendChild(card);
   });
+}
+/* ---------- 검색어 하이라이트 ---------- */
+function highlight(text, q) {
+  const s = String(text ?? "");
+  if (!q) return s;
+
+  // 정규식 특수문자 escape
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  return s.replace(new RegExp(`(${escaped})`, "ig"), "<mark>$1</mark>");
 }
 
 /* ---------- 상단 숫자 업데이트 ---------- */
@@ -51,7 +61,7 @@ function matchesQuery(job, q) {
 }
 
 function wireSearch(total) {
-  const input = document.getElementById("searchInput");
+  const input = document.getElementById("search");
   if (!input) return;
 
   let t = null;
@@ -62,14 +72,14 @@ function wireSearch(total) {
       ? __allJobs.filter(job => matchesQuery(job, q))
       : __allJobs;
 
-    renderJobs(filtered);
+    renderJobs(filtered, q);
     updateCount(filtered.length, total);
   };
 
   // 타이핑 중엔 잠깐 기다렸다가 실행 (디바운스)
   input.addEventListener("input", () => {
     clearTimeout(t);
-    t = setTimeout(apply, 500);
+    t = setTimeout(apply, 300);
   });
 
   // 검색창 X 버튼(클리어) 눌렀을 때도 반영 (브라우저에 따라 input만으로 부족할 때 있음)
