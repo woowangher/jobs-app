@@ -146,6 +146,10 @@ function setupInstallTip() {
 
 async function main() {
   state.jobs = await loadJobs();
+
+  els.meta.textContent = `loaded: ${state.jobs.length}`;
+  console.log("loaded jobs:", state.jobs.slice(0, 3));
+  
   bindEvents();
   setupInstallTip();
   render();
