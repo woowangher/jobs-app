@@ -114,7 +114,10 @@ function renderJobs(jobs, q = "", totalFiltered = jobs.length) {
     container.appendChild(card);
   });
 
-  updateCount(paged.length, totalFiltered);
+  updateCount(
+    Math.min(PAGE_SIZE, totalFiltered - (currentPage - 1) * PAGE_SIZE),
+    totalFiltered
+  );
   renderPagination(totalFiltered);
 }
 
