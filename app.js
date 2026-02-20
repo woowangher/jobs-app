@@ -15,9 +15,12 @@ async function loadJobs() {
     const jobs = data.data?.result || [];
     const loaded = data.data?.totalCount ?? jobs.length;
 
+    const jobs = data.data?.result || [];
+    const total = data.data?.totalCount ?? jobs.length;
+
     document.body.innerHTML = `
       <h1>Jobs</h1>
-      <p>Loaded: ${loaded}</p>
+      <p>Showing: ${jobs.length} / Total: ${total}</p>
       <div id="jobs"></div>
     `;
 
