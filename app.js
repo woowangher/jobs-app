@@ -184,18 +184,12 @@ renderJobs(filtered, q);
 updateCount(filtered.length, total);
     // 하이라이트는 "검색어" 기준만 유지(원하면 region/type도 합쳐서 하이라이트 가능
 
-  // 검색 디바운스
-  input.addEventListener("input", () => {
-    clearTimeout(t);
-    t = setTimeout(apply, 300);
-  });
   input.addEventListener("search", apply);
 
   // 셀렉트 변경 시 즉시 반영
   if (regionEl) regionEl.addEventListener("change", apply);
   if (typeEl) typeEl.addEventListener("change", apply);
   if (sortEl) sortEl.addEventListener("change", apply); 
-  apply
 
   // 타이핑 중엔 잠깐 기다렸다가 실행 (디바운스)
   input.addEventListener("input", () => {
