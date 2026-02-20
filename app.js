@@ -24,8 +24,8 @@ function renderJobs(jobs, q = "") {
     const period = `${job.pbancBgngYmd || ""} ~ ${job.pbancEndYmd || ""}`.trim();
 
     card.innerHTML = `
-      <h3 style="margin:0 0 6px 0;">${title}</h3>
-      <p style="margin:0 0 6px 0;"><b>${company}</b></p>
+      <h3 style="margin:0 0 6px 0;">${highlight(title, q)}</h3>
+      <p style="margin:0 0 6px 0;"><b>${highlight(company, q)}</b></p>
       <p style="margin:0 0 6px 0; color:#666;">${region}</p>
       <p style="margin:0 0 10px 0; color:#666;">${recruitType}${hireType ? " · " + hireType : ""}</p>
       <p style="margin:0 0 10px 0; color:#666;">${period}</p>
