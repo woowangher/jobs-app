@@ -12,8 +12,8 @@ async function loadJobs() {
       return;
     }
 
-    const jobs = data.data || [];
-    const loaded = data.meta?.loaded ?? jobs.length;
+    const jobs = data.data?.result || [];
+    const loaded = data.data?.totalCount ?? jobs.length;
 
     document.body.innerHTML = `
       <h1>Jobs</h1>
