@@ -61,7 +61,7 @@ function matchesQuery(job, q) {
 }
 
 function wireSearch(total) {
-  const input = document.getElementById("search");
+  const input = document.getElementById("searchinput");
   if (!input) return;
 
   let t = null;
