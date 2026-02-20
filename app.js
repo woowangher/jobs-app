@@ -26,24 +26,31 @@ function renderJobs(jobs, q = "") {
     card.innerHTML = `
       <h3 style="margin:0 0 6px 0;">${highlight(title, q)}</h3>
       <p style="margin:0 0 6px 0;"><b>${highlight(company, q)}</b></p>
-      <p style="margin:0 0 6px 0; color:#666;">${region}</p>
-      <p style="margin:0 0 10px 0; color:#666;">${recruitType}${hireType ? " · " + hireType : ""}</p>
-      <p style="margin:0 0 10px 0; color:#666;">${period}</p>
+      <p style="margin:0 0 6px 0; color:#666;">${highlight(region, q)}</p>
+      <p style="margin:0 0 10px 0; color:#666;">${highlight(recruitType, q)}${hireType ? " · " + highlight(hireType, q) : ""}</p>
+      <p style="margin:0 0 10px 0; color:#666;">${highlight(period, q)}</p>
       ${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">공고 링크</a>` : ""}
     `;
 
     container.appendChild(card);
   });
 }
+
 /* ---------- 검색어 하이라이트 ---------- */
 function highlight(text, q) {
   const s = String(text ?? "");
-  if (!q) return s;
+  const raw = String(q ?? "").trim();
+  if (!raw) return s;
 
-  // 정규식 특수문자 escape
-  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // 공백 기준으로 단어 분리 (2글자 이상만 추천: 너무 짧은 건 하이라이트 과해짐)
+  const tokens = raw.split(/\s+/).filter(t => t.length > 0);
 
-  return s.replace(new RegExp(`(${escaped})`, "ig"), "<mark>$1</mark>");
+  let out = s;
+  for (const token of tokens) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(`(${escaped})`, "ig"), "<mark>$1</mark>");
+  }
+  return out;
 }
 
 /* ---------- 상단 숫자 업데이트 ---------- */
