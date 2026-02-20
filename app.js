@@ -2,10 +2,14 @@
 
 async function loadJobs() {
   try {
+    console.log("[STEP] loadJobs start");                 //테스트용
+    
     const res = await fetch(API_URL, { cache: "no-store" });
     const data = await res.json();
-
+    
     console.log("API DATA:", data);
+
+    console.log("[STEP] fetched json, ok=", data.ok);     //테스트용
 
     if (!data.ok) {
       document.body.innerHTML = "<h2>API ok:false</h2>";
@@ -18,7 +22,9 @@ async function loadJobs() {
     const jobs = data.data?.result || [];
     const total = data.data?.totalCount ?? jobs.length;
 
-    const root = document.getElementById("jobs");
+    const root = document.getElementById("jobs");       //테스트용
+
+    console.log("[STEP] root exists =", !!root);
 
     if (!root) {
       console.error("index.html에 #jobs 없음");
