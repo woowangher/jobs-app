@@ -74,6 +74,33 @@ function renderJobs(jobs, q = "") {
     container.appendChild(card);
   });
 }
+/* ---------- 북마크 함수 ---------- */
+function wireBookmarkClicks() {
+  const container = document.getElementById("jobs-grid");
+  if (!container) return;
+
+  // 중복 바인딩 방지
+  if (container.dataset.bmBound) return;
+  container.dataset.bmBound = "1";
+
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest(".bm-btn");
+    if (!btn) return;
+
+    const key = btn.dataset.bm;
+    if (!key) return;
+
+    // 토글
+    if (bookmarks.has(key)) bookmarks.delete(key);
+    else bookmarks.add(key);
+
+    saveBookmarks(bookmarks);
+
+    // UI 즉시 반영
+    btn.textContent = bookmarks.has(key) ? "★" : "☆";
+  });
+}
+
 
 /* ---------- 검색어 하이라이트 ---------- */
 function highlight(text, q) {
@@ -231,6 +258,7 @@ async function loadJobs() {
     __allJobs = jobs;
 
     renderJobs(jobs);
+    wireBookmarkClicks();
     wireSearch(total);
 
   } catch (err) {
