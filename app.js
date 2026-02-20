@@ -189,6 +189,15 @@ function wireSearch(total) {
 
         if (!typeText.includes(typeNeedle)) return false;
       }
+      
+      const onlyBm = document.getElementById("onlyBookmarked")?.checked;
+
+      if (onlyBm) {
+        filtered = filtered.filter(job => {
+        const key = job.srcUrl || `${job.instNm || ""}__${job.recrutPbancTtl || ""}`;
+        return bookmarks.has(key);
+      });
+}
 
       return true;
     });
@@ -228,7 +237,8 @@ updateCount(filtered.length, total);
   if (regionEl) regionEl.addEventListener("change", apply);
   if (typeEl) typeEl.addEventListener("change", apply);
   if (sortEl) sortEl.addEventListener("change", apply); 
-
+  const bmEl = document.getElementById("onlyBookmarked");
+  if (bmEl) bmEl.addEventListener("change", apply);
   // 타이핑 중엔 잠깐 기다렸다가 실행 (디바운스)
   input.addEventListener("input", () => {
     clearTimeout(t);
