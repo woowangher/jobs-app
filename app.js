@@ -1,5 +1,20 @@
 ﻿const API_URL = "/api/jobs";
+const BOOKMARK_KEY = "jobs-app:bookmarks:v1";
 
+function loadBookmarks() {
+  try {
+    const raw = localStorage.getItem(BOOKMARK_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveBookmarks(set) {
+  localStorage.setItem(BOOKMARK_KEY, JSON.stringify([...set]));
+}
+let bookmarks = loadBookmarks();
 let __allJobs = [];
 
 /* ---------- 날짜 ---------- */
