@@ -29,9 +29,21 @@ async function loadJobs() {
       card.style.padding = "10px";
       card.style.margin = "10px 0";
 
+      const title = job.recrutPbancTtl || "제목 없음";
+      const company = job.instNm || "";
+      const url = job.srcUrl || "";
+      const region = Array.isArray(job.workRgnNmLst) ? job.workRgnNmLst.join(", ") : (job.workRgnNmLst || "");
+      const hireType = Array.isArray(job.hireTypeNmLst) ? job.hireTypeNmLst.join(", ") : (job.hireTypeNmLst || "");
+      const recruitType = job.recrutSeNm || "";
+      const period = `${job.pbancBgngYmd || ""} ~ ${job.pbancEndYmd || ""}`.trim();
+
       card.innerHTML = `
-        <h3>${job.title || "No title"}</h3>
-        <p>${job.company || ""}</p>
+        <h3 style="margin:0 0 6px 0;">${title}</h3>
+        <p style="margin:0 0 6px 0;"><b>${company}</b></p>
+        <p style="margin:0 0 6px 0; color:#666;">${region}</p>
+        <p style="margin:0 0 10px 0; color:#666;">${recruitType}${hireType ? " · " + hireType : ""}</p>
+        <p style="margin:0 0 10px 0; color:#666;">${period}</p>
+        ${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">공고 링크</a>` : ""}
       `;
 
       container.appendChild(card);
