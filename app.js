@@ -69,7 +69,7 @@ function wireSearch(total) {
   // 타이핑 중엔 잠깐 기다렸다가 실행 (디바운스)
   input.addEventListener("input", () => {
     clearTimeout(t);
-    t = setTimeout(apply, 200);
+    t = setTimeout(apply, 500);
   });
 
   // 검색창 X 버튼(클리어) 눌렀을 때도 반영 (브라우저에 따라 input만으로 부족할 때 있음)
