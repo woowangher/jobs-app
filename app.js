@@ -182,10 +182,7 @@ function wireSearch(total) {
 
 renderJobs(filtered, q);
 updateCount(filtered.length, total);
-    // 하이라이트는 "검색어" 기준만 유지(원하면 region/type도 합쳐서 하이라이트 가능)
-    renderJobs(filtered, q);
-    updateCount(filtered.length, total);
-  };
+    // 하이라이트는 "검색어" 기준만 유지(원하면 region/type도 합쳐서 하이라이트 가능
 
   // 검색 디바운스
   input.addEventListener("input", () => {
