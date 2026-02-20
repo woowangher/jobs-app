@@ -95,10 +95,17 @@ function wireBookmarkClicks() {
     else bookmarks.add(key);
 
     saveBookmarks(bookmarks);
-
+    updateCount(document.querySelectorAll("#jobs-grid .bm-btn").length, __allJobs.length);
     // UI 즉시 반영
     btn.textContent = bookmarks.has(key) ? "★" : "☆";
   });
+  const line = document.getElementById("showing-line");
+if (line) {
+  // 현재 showing/total 텍스트는 유지되고, updateCount가 다시 그리면서 북마크 숫자만 갱신됨
+  // showing/total은 wireSearch/apply가 관리하니 여기선 그냥 apply 재호출 대신 "현재값 그대로" 재렌더는 어려움
+  // => 다음 한 발에서 apply를 전역으로 빼서 깔끔히 해결할 거야
+  line.innerHTML = line.innerHTML.replace(/북마크:\s*<b>\d+<\/b>/, `북마크: <b>${bookmarks.size}</b>`);
+}
 }
 
 
@@ -123,7 +130,9 @@ function highlight(text, q) {
 function updateCount(showing, total) {
   const el = document.getElementById("showing-line");
   if (!el) return;
-  el.innerHTML = `<b>Showing:</b> ${showing} / <b>Total:</b> ${total}`;
+   el.innerHTML =
+    `<b>Showing:</b> ${showing} / <b>Total:</b> ${total}` +
+    ` <span style="margin-left:10px; color:#666;">북마크: <b>${bookmarks.size}</b></span>`;
 }
 
 /* ---------- 검색 ---------- */
