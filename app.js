@@ -12,7 +12,7 @@ async function loadJobs() {
       return;
     }
 
-    const jobs = data.result || [];
+    const jobs = data.data || [];
     const loaded = data.meta?.loaded ?? jobs.length;
 
     document.body.innerHTML = `
