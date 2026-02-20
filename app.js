@@ -68,20 +68,77 @@ function matchesQuery(job, q) {
 }
 
 function wireSearch(total) {
-  const input = document.getElementById("search");
+  const input = document.getElementById("search") || document.getElementById("searchInput");
+  const regionEl = document.getElementById("regionFilter");
+  const typeEl = document.getElementById("typeFilter");
+
   if (!input) return;
 
   let t = null;
 
+  const regionMap = {
+    all: "",
+    seoul: "서울",
+    gyeonggi: "경기",
+  };
+
+  const typeMap = {
+    all: "",
+    regular: "정규", // 필요하면 "정규직"로 바꿔도 됨
+    intern: "인턴",
+  };
+
   const apply = () => {
     const q = input.value.trim().toLowerCase();
-    const filtered = q
-      ? __allJobs.filter(job => matchesQuery(job, q))
-      : __allJobs;
 
+    const regionKey = regionEl ? regionEl.value : "all";
+    const typeKey = typeEl ? typeEl.value : "all";
+
+    const regionNeedle = (regionMap[regionKey] ?? "").toLowerCase();
+    const typeNeedle = (typeMap[typeKey] ?? "").toLowerCase();
+
+    const filtered = __allJobs.filter(job => {
+      // 1) 검색어(전체 JSON) 필터
+      if (q && !matchesQuery(job, q)) return false;
+
+      // 2) 지역 필터: workRgnNmLst 안에 포함되는지
+      if (regionNeedle) {
+        const regionText = Array.isArray(job.workRgnNmLst)
+          ? job.workRgnNmLst.join(" ").toLowerCase()
+          : String(job.workRgnNmLst ?? "").toLowerCase();
+
+        if (!regionText.includes(regionNeedle)) return false;
+      }
+
+      // 3) 고용형태 필터: hireTypeNmLst 안에 포함되는지
+      if (typeNeedle) {
+        const typeText = Array.isArray(job.hireTypeNmLst)
+          ? job.hireTypeNmLst.join(" ").toLowerCase()
+          : String(job.hireTypeNmLst ?? "").toLowerCase();
+
+        if (!typeText.includes(typeNeedle)) return false;
+      }
+
+      return true;
+    });
+
+    // 하이라이트는 "검색어" 기준만 유지(원하면 region/type도 합쳐서 하이라이트 가능)
     renderJobs(filtered, q);
     updateCount(filtered.length, total);
   };
+
+  // 검색 디바운스
+  input.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(apply, 300);
+  });
+  input.addEventListener("search", apply);
+
+  // 셀렉트 변경 시 즉시 반영
+  if (regionEl) regionEl.addEventListener("change", apply);
+  if (typeEl) typeEl.addEventListener("change", apply);
+
+  apply
 
   // 타이핑 중엔 잠깐 기다렸다가 실행 (디바운스)
   input.addEventListener("input", () => {
