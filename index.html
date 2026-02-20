@@ -11,15 +11,67 @@
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="stylesheet" href="./styles.css" />
   <title>Job Board PWA</title>
+
+  <style>
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .filters label {
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+      gap: 6px;
+    }
+
+    .search-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .bookmark-only {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .search-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 260px;
+      flex: 1;
+    }
+
+    @media (max-width: 600px) {
+      .filters {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
 </head>
+
 <body>
   <main class="app">
     <header class="top">
       <h1>Recruit Openings</h1>
       <p class="sub">Install to home screen on iPhone for app-like use.</p>
     </header>
+
     <div id="jobs"></div>
+
     <section class="filters" aria-label="Job filters">
+      
       <label>
         Region
         <select id="regionFilter">
@@ -28,8 +80,6 @@
           <option value="gyeonggi">Gyeonggi</option>
         </select>
       </label>
-
-     
 
       <label>
         Employment
@@ -49,15 +99,22 @@
         </select>
       </label>
 
-      <label style="margin-left:10px;">
-        <input type="checkbox" id="onlyBookmarked">
-        북마크만
-      </label>
+      <!-- 🔥 여기부터 새 구조 -->
+      <div class="search-row">
+        <div class="bookmark-only">
+          <label>
+            <input type="checkbox" id="onlyBookmarked">
+            북마크만
+          </label>
+        </div>
 
-      <label class="searchLabel">
-        Search
-        <input id="search" type="search" placeholder="title, company, keyword" />
-      </label>
+        <div class="search-box">
+          <label for="search">Search</label>
+          <input id="search" type="search" placeholder="title, company, keyword" />
+        </div>
+      </div>
+      <!-- 🔥 여기까지 -->
+
     </section>
 
     <section id="installTip" class="tip" hidden>
