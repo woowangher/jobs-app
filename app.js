@@ -52,9 +52,13 @@ function matchesQuery(job, q) {
 
 function wireSearch(total) {
   const input = document.getElementById("search");
+  console.log("[wireSearch] search element =", input); 
+
   if (!input) return;
 
   input.addEventListener("input", () => {
+    console.log("[INPUT EVENT] value =", input.value);
+
     const q = input.value.trim().toLowerCase();
     const filtered = __allJobs.filter(job => matchesQuery(job, q));
     renderJobs(filtered);
