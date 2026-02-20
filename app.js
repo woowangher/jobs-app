@@ -2,6 +2,23 @@
 
 let __allJobs = [];
 
+/* ---------- 날짜 ---------- */
+function parseYmd(v) {
+  // "20260220" / "2026-02-20" / "" 등 대응
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+
+  const digits = s.replace(/\D/g, "");
+  if (digits.length !== 8) return null;
+
+  const y = Number(digits.slice(0, 4));
+  const m = Number(digits.slice(4, 6));
+  const d = Number(digits.slice(6, 8));
+  if (!y || !m || !d) return null;
+
+  return new Date(y, m - 1, d).getTime();
+}
+
 /* ---------- 카드 렌더 함수 ---------- */
 function renderJobs(jobs, q = "") {
   const container = document.getElementById("jobs-grid");
@@ -71,6 +88,7 @@ function wireSearch(total) {
   const input = document.getElementById("search") || document.getElementById("searchInput");
   const regionEl = document.getElementById("regionFilter");
   const typeEl = document.getElementById("typeFilter");
+  const sortEl = document.getElementById("sortFilter");
 
   if (!input) return;
 
@@ -121,7 +139,34 @@ function wireSearch(total) {
 
       return true;
     });
+    const sortKey = sortEl ? sortEl.value : "default";
 
+      if (sortKey !== "default") {
+        filtered.sort((a, b) => {
+        if (sortKey === "deadline") {
+          const ta = parseYmd(a.pbancEndYmd);
+          const tb = parseYmd(b.pbancEndYmd);
+          if (ta == null && tb == null) return 0;
+          if (ta == null) return 1;
+          if (tb == null) return -1;
+          return ta - tb;
+      }
+
+      if (sortKey === "latest") {
+        const ta = parseYmd(a.pbancBgngYmd);
+        const tb = parseYmd(b.pbancBgngYmd);
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return 1;
+        if (tb == null) return -1;
+        return tb - ta;
+      }
+
+      return 0;
+  });
+}
+
+renderJobs(filtered, q);
+updateCount(filtered.length, total);
     // 하이라이트는 "검색어" 기준만 유지(원하면 region/type도 합쳐서 하이라이트 가능)
     renderJobs(filtered, q);
     updateCount(filtered.length, total);
@@ -137,7 +182,7 @@ function wireSearch(total) {
   // 셀렉트 변경 시 즉시 반영
   if (regionEl) regionEl.addEventListener("change", apply);
   if (typeEl) typeEl.addEventListener("change", apply);
-
+  if (sortEl) sortEl.addEventListener("change", apply); 
   apply
 
   // 타이핑 중엔 잠깐 기다렸다가 실행 (디바운스)
