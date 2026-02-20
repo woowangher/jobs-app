@@ -19,7 +19,7 @@ async function loadJobs() {
     const total = data.data?.totalCount ?? jobs.length;
 
 
-
+    console.log("API DATA:", data);
 
     console.log("[STEP] root exists =", !!root);
 
