@@ -54,9 +54,16 @@ function renderJobs(jobs, q = "") {
     const hireType = Array.isArray(job.hireTypeNmLst) ? job.hireTypeNmLst.join(", ") : (job.hireTypeNmLst || "");
     const recruitType = job.recrutSeNm || "";
     const period = `${job.pbancBgngYmd || ""} ~ ${job.pbancEndYmd || ""}`.trim();
+    const key = job.srcUrl || `${company}__${title}__${region}__${hireType}`;
+    const star = bookmarks.has(key) ? "★" : "☆";
 
     card.innerHTML = `
-      <h3 style="margin:0 0 6px 0;">${highlight(title, q)}</h3>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <h3 style="margin:0 0 6px 0;">${highlight(title, q)}</h3>
+        <button class="bm-btn" data-bm="${key}" style="border:0;background:transparent;font-size:18px;cursor:pointer;">
+          ${star}
+        </button>
+      </div>
       <p style="margin:0 0 6px 0;"><b>${highlight(company, q)}</b></p>
       <p style="margin:0 0 6px 0; color:#666;">${highlight(region, q)}</p>
       <p style="margin:0 0 10px 0; color:#666;">${highlight(recruitType, q)}${hireType ? " · " + highlight(hireType, q) : ""}</p>
