@@ -18,13 +18,19 @@ async function loadJobs() {
     const jobs = data.data?.result || [];
     const total = data.data?.totalCount ?? jobs.length;
 
-    document.body.innerHTML = `
-      <h1>Jobs</h1>
-      <p>Showing: ${jobs.length} / Total: ${total}</p>
-      <div id="jobs"></div>
+    const root = document.getElementById("jobs");
+
+    if (!root) {
+      console.error("index.html에 #jobs 없음");
+      return;
+    }
+
+    root.innerHTML = `
+      <p><b>Showing:</b> ${jobs.length} / <b>Total:</b> ${total}</p>
+      <div id="jobs-grid"></div>
     `;
 
-    const container = document.getElementById("jobs");
+const container = document.getElementById("jobs-grid");
 
     jobs.forEach(job => {
       const card = document.createElement("div");
