@@ -52,18 +52,31 @@ function matchesQuery(job, q) {
 
 function wireSearch(total) {
   const input = document.getElementById("searchInput");
-  console.log("[wireSearch] search element =", input); 
-
   if (!input) return;
 
-  input.addEventListener("input", () => {
-    console.log("[INPUT EVENT] value =", input.value);
+  let t = null;
 
+  const apply = () => {
     const q = input.value.trim().toLowerCase();
-    const filtered = __allJobs.filter(job => matchesQuery(job, q));
+    const filtered = q
+      ? __allJobs.filter(job => matchesQuery(job, q))
+      : __allJobs;
+
     renderJobs(filtered);
     updateCount(filtered.length, total);
+  };
+
+  // 타이핑 중엔 잠깐 기다렸다가 실행 (디바운스)
+  input.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(apply, 200);
   });
+
+  // 검색창 X 버튼(클리어) 눌렀을 때도 반영 (브라우저에 따라 input만으로 부족할 때 있음)
+  input.addEventListener("search", apply);
+
+  // 페이지 로드시 1회 적용(혹시 input에 값이 남아있을 때)
+  apply();
 }
 
 /* ---------- 메인 로딩 ---------- */
