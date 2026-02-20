@@ -1,34 +1,42 @@
 export async function onRequestGet(context) {
   const serviceKey = context.env.PUBLIC_DATA_SERVICE_KEY;
 
-  // 공공데이터 기본 주소 + 목록조회(/list)
   const baseUrl = "https://apis.data.go.kr/1051000/recruitment/list";
 
-  // 최소 테스트 파라미터 (진행중 + JSON + 10개)
+  // ✅ 한 번에 넉넉히 가져오기 (프론트에서 20개씩 페이지네이션)
   const params = new URLSearchParams({
-    serviceKey,
+    serviceKey,            // 보통 디코딩 키 그대로 OK
     resultType: "json",
     pageNo: "1",
-    numOfRows: "10",
+    numOfRows: "500",      // ✅ 10 -> 500 (필요하면 200/1000으로 조절)
     ongoingYn: "Y",
   });
 
   const url = `${baseUrl}?${params.toString()}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: { "Accept": "application/json" },
+    });
 
-    // 공공데이터 API가 가끔 JSON이 아닌 경우도 있어서 텍스트로 받고 파싱
     const text = await res.text();
 
     let data;
     try {
       data = JSON.parse(text);
     } catch {
-      // JSON 파싱 실패하면 원문을 그대로 반환 (디버깅용)
+      // ✅ 502 대신 ok:false로 내려서 프론트에서 원인 확인 가능하게
       return new Response(
         JSON.stringify({ ok: false, error: "Upstream is not JSON", raw: text }),
-        { status: 502, headers: { "Content-Type": "application/json; charset=utf-8" } }
+        { status: 200, headers: { "Content-Type": "application/json; charset=utf-8" } }
+      );
+    }
+
+    // ✅ 업스트림 HTTP 에러여도 본문은 내려주기
+    if (!res.ok) {
+      return new Response(
+        JSON.stringify({ ok: false, error: `Upstream HTTP ${res.status}`, data }),
+        { status: 200, headers: { "Content-Type": "application/json; charset=utf-8" } }
       );
     }
 
@@ -37,8 +45,8 @@ export async function onRequestGet(context) {
     });
   } catch (err) {
     return new Response(
-      JSON.stringify({ ok: false, error: String(err) }),
-      { status: 502, headers: { "Content-Type": "application/json; charset=utf-8" } }
+      JSON.stringify({ ok: false, error: String(err?.message || err) }),
+      { status: 200, headers: { "Content-Type": "application/json; charset=utf-8" } }
     );
   }
 }
