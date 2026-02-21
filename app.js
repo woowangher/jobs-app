@@ -550,10 +550,9 @@ function wireUI() {
   document.getElementById("tabAll")?.addEventListener("click", () => { setView("all"); applyFiltersAndRender(); });
   document.getElementById("tabBookmarks")?.addEventListener("click", () => { setView("bookmarks"); applyFiltersAndRender(); });
 
-  // ✅ Mobile filter toggle (접기/펼치기)
+  // ✅ Filter toggle (PC/모바일 공통)
   const btnToggleFilters = document.getElementById("btnToggleFilters");
   const filtersSection = document.querySelector(".filters");
-  const advanced = document.getElementById("advancedFilters");
 
   function setFiltersOpen(open) {
     if (!filtersSection || !btnToggleFilters) return;
@@ -562,10 +561,10 @@ function wireUI() {
     btnToggleFilters.textContent = open ? "필터 접기" : "필터 펼치기";
   }
 
-  // 모바일에서는 기본 닫힘, 데스크탑에서는 열림 느낌 유지
+  // ✅ 기본값: PC는 열림, 모바일은 닫힘
   function syncFiltersDefault() {
     const isMobile = window.matchMedia("(max-width: 700px)").matches;
-    setFiltersOpen(!isMobile); // 모바일 닫힘, 데스크탑 열림
+    setFiltersOpen(!isMobile);
   }
 
   btnToggleFilters?.addEventListener("click", () => {
@@ -573,14 +572,12 @@ function wireUI() {
     setFiltersOpen(!isOpen);
   });
 
-  // 화면 회전/리사이즈 대응
   window.addEventListener("resize", () => {
-    // 너무 자주 호출 방지(가벼운 debounce)
     clearTimeout(syncFiltersDefault.__t);
-    syncFiltersDefault.__t = setTimeout(syncFiltersDefault, 100);
+    syncFiltersDefault.__t = setTimeout(syncFiltersDefault, 120);
   });
 
-  // 최초 1회
+  // 최초 1회 적용
   syncFiltersDefault();
 
   // ✅ Reset (document click delegation - capture)

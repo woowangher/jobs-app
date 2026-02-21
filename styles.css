@@ -270,3 +270,34 @@ select:focus, input:focus, textarea:focus {
 
   body { overflow: auto; } /* iOS에서 스크롤 안정 */
 }
+
+/* 접근성용(화면에서 숨김) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 버튼 칸 너무 커지지 않게 */
+.field-tight { min-width: auto; flex: 0 0 auto; }
+
+/* ✅ Mobile: 기본은 고급필터 접힘 */
+@media (max-width: 700px) {
+  #advancedFilters { display: none; }
+  .filters.is-open #advancedFilters { display: flex; }
+}
+
+/* ✅ 고급필터 접기/펼치기: PC/모바일 공통 */
+#advancedFilters { display: flex; }
+.filters:not(.is-open) #advancedFilters { display: none; }
+
+/* 모바일에서 레이아웃 깨짐 방지 */
+@media (max-width: 700px) {
+  #advancedFilters { flex-wrap: wrap; }
+}
