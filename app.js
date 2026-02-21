@@ -583,7 +583,7 @@ function openModal(job) {
 
 
 function closeModal() {
-  console.log("closeModal CALLED v2026-02-21");
+  
   const backdrop = document.getElementById("modalBackdrop");
   const modal = document.getElementById("jobModal");
 
@@ -1015,8 +1015,7 @@ async function loadJobs() {
 // =====================
 (async function boot() {
   renderRecentSearches();
-  //await registerSW(); 임시!!!!!!!!!!!!!
-  wireUI();
+  await registerSW();
   await loadJobs();
 
   const restored = restoreUiState();
