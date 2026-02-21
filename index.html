@@ -1,134 +1,97 @@
 ﻿<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0f172a" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Job Board" />
-  <link rel="manifest" href="./manifest.json" />
-  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-  <link rel="stylesheet" href="./styles.css" />
-  <title>Job Board PWA</title>
-</head>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recruit Openings</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container">
+        <h1 class="title">Recruit Openings</h1>
+        <p class="subtitle">Install to home screen on iPhone for app-like use.</p>
 
-<body>
-  <main class="app" id="app">
-    <header class="top">
-      <div class="top-row">
-        <div>
-          <h1>Recruit Openings</h1>
-          <p class="sub">Install to home screen on iPhone for app-like use.</p>
+        <div class="filters">
+          <label class="field">
+            <span class="label">Region</span>
+            <select id="filterRegion" class="select">
+              <option value="all">All</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="label">Employment</span>
+            <select id="filterEmployment" class="select">
+              <option value="all">All</option>
+            </select>
+          </label>
+
+          <label class="field grow">
+            <span class="label">Search</span>
+            <input id="filterSearch" class="input" type="search" placeholder="Search title / company / keyword" />
+          </label>
         </div>
-        <div class="top-actions">
-          <span id="newBadge" class="badge badge-new" hidden>NEW</span>
-          <button id="btnReset" class="btn btn-ghost" type="button">초기화</button>
+
+        <div class="meta">
+          <span id="metaText">Loading…</span>
+          <button id="btnRefresh" class="btn btn-ghost" type="button">Refresh</button>
         </div>
       </div>
-
-      <nav class="tabs" aria-label="Views">
-        <button class="tab is-active" id="tabAll" data-view="all" type="button">전체</button>
-        <button class="tab" id="tabBookmarks" data-view="bookmarks" type="button">북마크</button>
-      </nav>
     </header>
 
-    <section class="filters" aria-label="Job filters">
-      <div class="filter-row">
-        <div class="field">
-          <label for="search">Search</label>
-          <input id="search" type="search" placeholder="title, company, keyword (ex: 개발 -인턴)" list="recentSearches" />
-          <datalist id="recentSearches"></datalist>
-          <div class="hint">팁: 공백으로 여러 키워드, 제외는 <code>-키워드</code> (예: <code>개발 -인턴</code>)</div>
+    <main class="container">
+      <div id="jobs-grid" class="grid" aria-live="polite"></div>
+      <div id="emptyState" class="empty hidden">
+        <p>No jobs found.</p>
+      </div>
+      <div id="errorState" class="error hidden">
+        <p><b>Failed to load jobs.</b> Check /api/jobs and console logs.</p>
+      </div>
+    </main>
+
+    <!-- Backdrop + Modal -->
+    <div id="modalBackdrop" class="backdrop hidden" hidden></div>
+
+    <section
+      id="jobModal"
+      class="modal hidden"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalTitle"
+    >
+      <div class="modal-card" role="document">
+        <div class="modal-head">
+          <div class="modal-head-text">
+            <h2 id="modalTitle" class="modal-title">Job Detail</h2>
+            <p id="modalSub" class="modal-sub"></p>
+          </div>
+
+          <button id="btnCloseModal" class="btn btn-ghost btn-x" type="button" aria-label="닫기">✕</button>
         </div>
 
-        <div class="field">
-          <label for="sortFilter">Sort</label>
-          <select id="sortFilter">
-            <option value="default">Default</option>
-            <option value="deadline">Deadline (soonest)</option>
-            <option value="latest">Latest (newest)</option>
-          </select>
+        <div class="modal-body">
+          <div class="pill-row" id="modalPills"></div>
+
+          <div class="modal-section">
+            <h3>Summary</h3>
+            <p id="modalSummary" class="muted"></p>
+          </div>
+
+          <div class="modal-section">
+            <h3>Description</h3>
+            <div id="modalDesc" class="desc"></div>
+          </div>
+
+          <div class="modal-section">
+            <h3>Apply</h3>
+            <a id="modalLink" class="btn btn-primary" href="#" target="_blank" rel="noreferrer">Open link</a>
+          </div>
         </div>
       </div>
-
-      <div class="filter-row">
-        <fieldset class="fieldset">
-          <legend>Region</legend>
-          <label class="chk"><input type="checkbox" name="region" value="서울">서울</label>
-          <label class="chk"><input type="checkbox" name="region" value="경기">경기</label>
-          <label class="chk"><input type="checkbox" name="region" value="인천">인천</label>
-          <label class="chk"><input type="checkbox" name="region" value="대전">대전</label>
-          <label class="chk"><input type="checkbox" name="region" value="부산">부산</label>
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend>Employment</legend>
-          <label class="chk"><input type="checkbox" name="type" value="정규">정규</label>
-          <label class="chk"><input type="checkbox" name="type" value="인턴">인턴</label>
-          <label class="chk"><input type="checkbox" name="type" value="계약">계약</label>
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend>Options</legend>
-          <label class="chk"><input type="checkbox" id="onlyOpen">마감된 공고 제외</label>
-          <label class="chk"><input type="checkbox" id="due7">마감 7일 이내</label>
-          <label class="chk"><input type="checkbox" id="onlyToday">오늘 시작(등록)만</label>
-        </fieldset>
-      </div>
-
-      <div class="chips-row" id="activeChips" aria-label="Active filters"></div>
     </section>
 
-    <div id="jobs">
-      <p id="showing-line"></p>
-
-      <!-- ✅ 내부 스크롤 영역 -->
-      <div id="list-wrapper">
-        <div id="sentinel-top"></div>
-        <div id="jobs-grid" aria-live="polite"></div>
-        <div id="sentinel-bottom"></div>
-      </div>
-    </div>
-
-    <section id="installTip" class="tip" hidden>
-      On iPhone Safari: Share -> Add to Home Screen
-    </section>
-  </main>
-
-  <!-- ✅ Detail Modal -->
-  <div id="modalBackdrop" class="modal-backdrop" hidden></div>
-  <div id="jobModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
-    <div class="modal-header">
-      <h2 id="modalTitle">Job Detail</h2>
-      <button id="btnCloseModal" class="btn btn-ghost" type="button" aria-label="닫기">✕</button>
-    </div>
-
-    <div class="modal-body" id="modalBody"></div>
-
-    <div class="modal-footer">
-      <div class="bm-meta">
-        <div class="field">
-          <label for="bmTagsInput">태그 (쉼표로 구분)</label>
-          <input id="bmTagsInput" type="text" placeholder="예: 지원,관심,보류" />
-          <div class="hint">예: <code>지원,관심</code></div>
-        </div>
-
-        <div class="field">
-          <label for="bmNote">메모</label>
-          <textarea id="bmNote" rows="3" placeholder="예: 포트폴리오 맞는지 확인, 연봉 확인"></textarea>
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <button id="btnCopy" class="btn btn-ghost" type="button">링크 복사</button>
-        <button id="btnShare" class="btn btn-ghost" type="button">공유</button>
-        <button id="btnToggleBookmark" class="btn btn-primary" type="button">북마크</button>
-        <button id="btnSaveBmMeta" class="btn btn-secondary" type="button">태그/메모 저장</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="./app.js" defer></script>
-</body>
+    <script src="./app.js"></script>
+  </body>
 </html>

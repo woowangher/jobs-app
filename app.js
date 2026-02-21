@@ -1,5 +1,7 @@
 ﻿const API_URL = "/api/jobs";
 
+let isModalOpen = false;
+
 // =====================
 // Storage Keys
 // =====================
@@ -502,6 +504,9 @@ function updateBookmarkMeta(job, { tags, note }) {
 // Modal (✅ 닫힘 버그 해결 포함)
 // =====================
 function openModal(job) {
+  if (isModalOpen) return;
+  isModalOpen = true;
+
   __modalJob = job;
 
   const backdrop = document.getElementById("modalBackdrop");
@@ -566,6 +571,7 @@ function closeModal() {
   if (backdrop) backdrop.hidden = true;
   if (modal) modal.hidden = true;
   __modalJob = null;
+  setTimeout(() => { isModalOpen = false; }, 0);
 }
 
 // =====================
@@ -852,10 +858,16 @@ function wireUI() {
   });
 
   // modal controls
-  document.getElementById("btnCloseModal")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    closeModal();
-  });
+  document.getElementById("btnCloseModal")?.addEventListener(
+    "click",
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      closeModal();
+    },
+    true
+  );
 
   document.getElementById("modalBackdrop")?.addEventListener("click", (e) => {
     e.stopPropagation();
