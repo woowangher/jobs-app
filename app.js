@@ -553,27 +553,51 @@ function openModal(job) {
     ${bm?.note ? `<div style="margin-top:14px;"><b>메모</b><div style="margin-top:6px;color:#64748b">${escapeHtml(bm.note).replaceAll("\n","<br>")}</div></div>` : ""}
   `;
 
+  // ✅ 기존 기능 유지: 태그/메모 input 값 세팅
   const tagsInput = document.getElementById("bmTagsInput");
   const noteInput = document.getElementById("bmNote");
   if (tagsInput) tagsInput.value = (bm?.tags || []).join(",");
   if (noteInput) noteInput.value = bm?.note || "";
 
+  // ✅ 기존 기능 유지: 북마크 토글 버튼 텍스트 갱신
   const btnToggle = document.getElementById("btnToggleBookmark");
   if (btnToggle) btnToggle.textContent = isBm ? "북마크 해제" : "북마크 추가";
 
+  // ✅ 핵심 패치: CSS가 hidden 무시해도 무조건 보이게/안 보이게 만들기
   backdrop.hidden = false;
   modal.hidden = false;
+
+  backdrop.classList.remove("hidden");
+  modal.classList.remove("hidden");
+
+  // backdrop은 block, modal은 원래 CSS가 flex라 flex로 복구
+  backdrop.style.display = "block";
+  modal.style.display = "flex";
+
+  backdrop.style.pointerEvents = "auto";
+  modal.style.pointerEvents = "auto";
 
   // focus
   document.getElementById("btnCloseModal")?.focus();
 }
 
+
 function closeModal() {
   const backdrop = document.getElementById("modalBackdrop");
   const modal = document.getElementById("jobModal");
 
-  if (backdrop) backdrop.hidden = true;
-  if (modal) modal.hidden = true;
+  if (backdrop) {
+    backdrop.hidden = true;
+    backdrop.classList.add("hidden");
+    backdrop.style.display = "none";
+    backdrop.style.pointerEvents = "none";
+  }
+  if (modal) {
+    modal.hidden = true;
+    modal.classList.add("hidden");
+    modal.style.display = "none";
+    modal.style.pointerEvents = "none";
+  }
 
   __modalJob = null;
 
