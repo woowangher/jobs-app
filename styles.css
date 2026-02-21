@@ -1,4 +1,5 @@
-﻿:root {
+﻿===== styles.css =====
+:root {
   --bg: #f8fafc;
   --panel: #ffffff;
   --text: #0f172a;
@@ -163,6 +164,45 @@ select:focus, input:focus, textarea:focus {
   font-size: 14px;
 }
 
+/* ✅ bookmarks controls */
+.bm-controls{
+  padding: 10px 4px 12px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,0.94);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 19;
+}
+.bm-row{
+  display:flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.bm-field{ flex: 1; min-width: 220px; }
+.bm-label{ display:block; font-size: 0.85rem; color: var(--text); margin-bottom: 6px; }
+.bm-stats{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bm-badge{
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  border: 1px solid var(--line);
+  background:#fff;
+  cursor:pointer;
+  user-select:none;
+}
+.bm-badge:hover{ border-color:#cbd5e1; }
+.bm-badge strong{ font-weight: 800; }
+
 /* jobs */
 #jobs { flex: 1; display:flex; flex-direction:column; min-height: 0; }
 #showing-line {
@@ -208,6 +248,14 @@ select:focus, input:focus, textarea:focus {
   background:#fff;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+/* ✅ status pill */
+.status-pill{
+  border-color: rgba(15,118,110,0.35);
+  color: var(--brand);
+  background: rgba(15,118,110,0.06);
+  font-weight: 700;
 }
 
 .bm-btn {
@@ -365,4 +413,6 @@ select:focus, input:focus, textarea:focus {
   .app { width: min(980px, 94vw); }
   #advancedFilters { flex-wrap: wrap; }
   .modal { left: 12px; right: 12px; width: auto; }
+
+  .bm-field{ min-width: 160px; }
 }

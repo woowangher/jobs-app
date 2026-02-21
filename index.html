@@ -1,4 +1,5 @@
-﻿<!doctype html>
+﻿===== index.html =====
+<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -11,8 +12,8 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
 
-  <link rel="stylesheet" href="./styles.css?v=appify_1">
-  <script src="./app.js?v=appify_1" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=appify_2">
+  <script src="./app.js?v=appify_2" defer></script>
   <title>Job Board PWA</title>
 </head>
 
@@ -96,6 +97,33 @@
 
     <!-- Jobs -->
     <section id="jobs" aria-label="Jobs">
+      <!-- ✅ 북마크 탭 전용 컨트롤 -->
+      <section id="bmControls" class="bm-controls" hidden aria-label="Bookmarks controls">
+        <div id="bmStats" class="bm-stats" aria-label="Bookmarks stats"></div>
+
+        <div class="bm-row">
+          <div class="bm-field">
+            <label class="bm-label" for="bmStatusFilter">상태</label>
+            <select id="bmStatusFilter">
+              <option value="all">전체</option>
+              <option value="interested">관심</option>
+              <option value="plan">지원예정</option>
+              <option value="applied">지원완료</option>
+              <option value="hold">보류</option>
+              <option value="rejected">탈락</option>
+            </select>
+          </div>
+
+          <div class="bm-field">
+            <label class="bm-label" for="bmSort">정렬</label>
+            <select id="bmSort">
+              <option value="recent">최근 저장/수정순</option>
+              <option value="status">상태순</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <p id="showing-line"><b>Showing:</b> 0 / <b>Total:</b> 0</p>
       <div id="list-wrapper" aria-label="채용 공고 리스트">
         <div id="jobs-grid"></div>
@@ -138,6 +166,19 @@
 
     <div class="modal-footer">
       <div class="bm-meta">
+        <!-- ✅ 상태 -->
+        <div class="field">
+          <label for="bmStatus">상태</label>
+          <select id="bmStatus">
+            <option value="interested">관심</option>
+            <option value="plan">지원예정</option>
+            <option value="applied">지원완료</option>
+            <option value="hold">보류</option>
+            <option value="rejected">탈락</option>
+          </select>
+          <div class="hint">북마크한 공고만 상태/메모 저장됨</div>
+        </div>
+
         <div class="field">
           <label for="bmTagsInput">태그 (쉼표로 구분)</label>
           <input id="bmTagsInput" type="text" placeholder="예: 지원,관심,보류" />

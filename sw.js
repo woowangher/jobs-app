@@ -1,17 +1,18 @@
-﻿// sw.js (appify_1)
+﻿
+// sw.js (appify_2)
 // SAME ORIGIN only
 // /api/* : network only
 // HTML navigate: network-first, fallback cache
 // Assets: cache-first + background update
 
-const VERSION = "appify_1";
+const VERSION = "appify_2";
 const CACHE = `jobs-app-${VERSION}`;
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=appify_1",
-  "./app.js?v=appify_1",
+  "./styles.css?v=appify_2",
+  "./app.js?v=appify_2",
 ];
 
 self.addEventListener("install", (event) => {

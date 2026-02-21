@@ -1,9 +1,19 @@
-﻿const API_URL = "/api/jobs";
+﻿===== app.js =====
+const API_URL = "/api/jobs";
 
 const BOOKMARK_KEY = "jobs-app:bookmarks:v4";
 const UI_STATE_KEY = "jobs-app:ui-state:v4";
 const RECENT_SEARCH_KEY = "jobs-app:recent-searches:v1";
 const SNAPSHOT_KEY = "jobs-app:last-snapshot:v3";
+
+const BM_STATUS = {
+  interested: "관심",
+  plan: "지원예정",
+  applied: "지원완료",
+  hold: "보류",
+  rejected: "탈락",
+};
+const BM_STATUS_ORDER = ["interested", "plan", "applied", "hold", "rejected"];
 
 let jobsAll = [];
 let jobsView = [];
@@ -16,9 +26,25 @@ let swUpdateReady = false;
 
 // ------------------ storage helpers ------------------
 function safeJsonParse(raw, fallback) { try { return JSON.parse(raw); } catch { return fallback; } }
+
+function normalizeBookmarkEntry(entry) {
+  // 기존 데이터(태그/노트만 있던 형태)도 안전하게 보정
+  const e = (entry && typeof entry === "object") ? entry : {};
+  const savedAt = Number.isFinite(e.savedAt) ? e.savedAt : Date.now();
+  const tags = Array.isArray(e.tags) ? e.tags.slice(0, 20) : [];
+  const note = typeof e.note === "string" ? e.note : "";
+  const status = (typeof e.status === "string" && BM_STATUS[e.status]) ? e.status : "interested";
+  return { savedAt, tags, note, status };
+}
+
 function loadBookmarks() {
   const obj = safeJsonParse(localStorage.getItem(BOOKMARK_KEY) || "{}", {});
-  return obj && typeof obj === "object" ? obj : {};
+  const out = (obj && typeof obj === "object") ? obj : {};
+  // ✅ 마이그레이션/정규화
+  for (const k of Object.keys(out)) out[k] = normalizeBookmarkEntry(out[k]);
+  // 저장해두면 다음부터 깔끔
+  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(out));
+  return out;
 }
 function saveBookmarks(obj) { localStorage.setItem(BOOKMARK_KEY, JSON.stringify(obj)); }
 
@@ -122,6 +148,15 @@ function setLastUpdated(ts = Date.now()) {
   el.textContent = `업데이트: ${hh}:${mm}`;
 }
 
+function getBmStatusLabel(status) {
+  return BM_STATUS[status] || "관심";
+}
+
+function statusRank(status) {
+  const idx = BM_STATUS_ORDER.indexOf(status);
+  return idx === -1 ? 999 : idx;
+}
+
 // ------------------ toast ------------------
 function toast(message, { actionText = null, onAction = null, duration = 2200 } = {}) {
   const host = document.getElementById("toastHost");
@@ -166,6 +201,10 @@ function setView(v) {
   const tabBm = document.getElementById("tabBookmarks");
   tabAll?.classList.toggle("is-active", v === "all");
   tabBm?.classList.toggle("is-active", v === "bookmarks");
+
+  // 북마크 탭 컨트롤 표시/숨김
+  const bmControls = document.getElementById("bmControls");
+  if (bmControls) bmControls.hidden = (v !== "bookmarks");
 }
 
 function getUiSnapshot() {
@@ -176,14 +215,19 @@ function getUiSnapshot() {
   const onlyOpen = !!document.getElementById("onlyOpen")?.checked;
   const due7 = !!document.getElementById("due7")?.checked;
   const onlyToday = !!document.getElementById("onlyToday")?.checked;
-  return { q, sort, regions, types, onlyOpen, due7, onlyToday, view: viewMode };
+
+  // ✅ 북마크 탭 전용 상태/정렬
+  const bmStatus = document.getElementById("bmStatusFilter")?.value || "all";
+  const bmSort = document.getElementById("bmSort")?.value || "recent";
+
+  return { q, sort, regions, types, onlyOpen, due7, onlyToday, view: viewMode, bmStatus, bmSort };
 }
 
-function updateCount(showing, total) {
+function updateCount(showing, totalBase) {
   const el = document.getElementById("showing-line");
   if (!el) return;
   const bmCount = Object.keys(bookmarks).length;
-  el.innerHTML = `<b>Showing:</b> ${showing} / <b>Total:</b> ${total} <span style="margin-left:10px;color:#666;">북마크: <b>${bmCount}</b></span>`;
+  el.innerHTML = `<b>Showing:</b> ${showing} / <b>Total:</b> ${totalBase} <span style="margin-left:10px;color:#666;">북마크: <b>${bmCount}</b></span>`;
 }
 
 function renderActiveChips(state) {
@@ -206,6 +250,13 @@ function renderActiveChips(state) {
   if (state.onlyToday) items.push({ label: "오늘만", clear: () => (document.getElementById("onlyToday").checked = false) });
   if (state.view === "bookmarks") items.push({ label: "북마크 보기", clear: () => setView("all") });
 
+  if (state.view === "bookmarks" && state.bmStatus && state.bmStatus !== "all") {
+    items.push({
+      label: `상태: ${getBmStatusLabel(state.bmStatus)}`,
+      clear: () => { const el = document.getElementById("bmStatusFilter"); if (el) el.value = "all"; }
+    });
+  }
+
   chips.innerHTML = items.map((it, idx) => `
     <span class="chip">
       ${escapeHtml(it.label)}
@@ -221,6 +272,27 @@ function renderActiveChips(state) {
     items[idx]?.clear?.();
     applyFiltersAndRender();
   };
+}
+
+function renderBmStats() {
+  const stats = document.getElementById("bmStats");
+  if (!stats) return;
+
+  const counts = { all: 0, interested: 0, plan: 0, applied: 0, hold: 0, rejected: 0 };
+  for (const k of Object.keys(bookmarks)) {
+    const st = bookmarks[k]?.status || "interested";
+    counts.all++;
+    if (counts[st] != null) counts[st]++;
+  }
+
+  stats.innerHTML = `
+    <button type="button" class="bm-badge" data-bm-filter="all">전체 <strong>${counts.all}</strong></button>
+    <button type="button" class="bm-badge" data-bm-filter="interested">${BM_STATUS.interested} <strong>${counts.interested}</strong></button>
+    <button type="button" class="bm-badge" data-bm-filter="plan">${BM_STATUS.plan} <strong>${counts.plan}</strong></button>
+    <button type="button" class="bm-badge" data-bm-filter="applied">${BM_STATUS.applied} <strong>${counts.applied}</strong></button>
+    <button type="button" class="bm-badge" data-bm-filter="hold">${BM_STATUS.hold} <strong>${counts.hold}</strong></button>
+    <button type="button" class="bm-badge" data-bm-filter="rejected">${BM_STATUS.rejected} <strong>${counts.rejected}</strong></button>
+  `;
 }
 
 // ------------------ rendering ------------------
@@ -242,6 +314,8 @@ function makeCard(job, q) {
   const star = isBm ? "★" : "☆";
   const aria = isBm ? "북마크 해제" : "북마크 추가";
 
+  const statusPill = isBm ? `<span class="pill status-pill">${escapeHtml(getBmStatusLabel(bm.status))}</span>` : "";
+
   const el = document.createElement("div");
   el.className = "job-card";
   el.dataset.key = key;
@@ -253,6 +327,7 @@ function makeCard(job, q) {
       <div style="flex:1;min-width:0;">
         <h3 style="margin:0;line-height:1.3;">${highlight(title, q)}</h3>
         <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;">
+          ${statusPill}
           ${recruitType ? `<span class="pill">${escapeHtml(recruitType)}</span>` : ""}
           ${hireType ? `<span class="pill">${escapeHtml(hireType)}</span>` : ""}
           ${region ? `<span class="pill">${escapeHtml(region)}</span>` : ""}
@@ -298,14 +373,14 @@ function showSkeleton(n = 6) {
   updateCount(n, n);
 }
 
-function renderList(list, q) {
+function renderList(list, q, totalBase) {
   const grid = document.getElementById("jobs-grid");
   if (!grid) return;
   const frag = document.createDocumentFragment();
   for (const job of list) frag.appendChild(makeCard(job, q));
   grid.innerHTML = "";
   grid.appendChild(frag);
-  updateCount(list.length, list.length);
+  updateCount(list.length, totalBase);
 }
 
 // ------------------ filtering ------------------
@@ -338,11 +413,24 @@ function applyFiltersAndRender() {
 
   let list = jobsAll.slice();
 
+  // ✅ base total (전체/북마크)
+  const totalBase = (state.view === "bookmarks") ? Object.keys(bookmarks).length : jobsAll.length;
+
+  // 북마크 뷰: 북마크만
   if (state.view === "bookmarks") {
     const keys = new Set(Object.keys(bookmarks));
     list = list.filter(j => keys.has(getJobKey(j)));
+
+    // ✅ 북마크 상태 필터
+    if (state.bmStatus && state.bmStatus !== "all") {
+      list = list.filter(j => {
+        const bm = bookmarks[getJobKey(j)];
+        return bm && bm.status === state.bmStatus;
+      });
+    }
   }
 
+  // 공통 필터
   if (state.regions.length) {
     const needles = state.regions.map(x => x.toLowerCase());
     list = list.filter(job => {
@@ -379,6 +467,7 @@ function applyFiltersAndRender() {
     list = list.filter(job => parseYmd(job.pbancBgngYmd) === today);
   }
 
+  // 검색
   if (rawQ) {
     const { includeTokens, excludeTokens } = parseQueryTokens(rawQ);
     const scored = [];
@@ -391,17 +480,42 @@ function applyFiltersAndRender() {
     saveRecentSearch(state.q);
   }
 
-  if (state.sort === "deadline") {
-    list.sort((a, b) => (parseYmd(a.pbancEndYmd) ?? 9e15) - (parseYmd(b.pbancEndYmd) ?? 9e15));
-  } else if (state.sort === "latest") {
-    list.sort((a, b) => (parseYmd(b.pbancBgngYmd) ?? 0) - (parseYmd(a.pbancBgngYmd) ?? 0));
+  // 정렬: 전체 탭은 기존 sortFilter 우선
+  if (state.view !== "bookmarks") {
+    if (state.sort === "deadline") {
+      list.sort((a, b) => (parseYmd(a.pbancEndYmd) ?? 9e15) - (parseYmd(b.pbancEndYmd) ?? 9e15));
+    } else if (state.sort === "latest") {
+      list.sort((a, b) => (parseYmd(b.pbancBgngYmd) ?? 0) - (parseYmd(a.pbancBgngYmd) ?? 0));
+    }
+  } else {
+    // ✅ 북마크 탭 정렬 (최근/상태순)
+    if (state.bmSort === "status") {
+      list.sort((a, b) => {
+        const ba = bookmarks[getJobKey(a)];
+        const bb = bookmarks[getJobKey(b)];
+        const ra = statusRank(ba?.status);
+        const rb = statusRank(bb?.status);
+        if (ra !== rb) return ra - rb;
+        return (Number(bb?.savedAt) || 0) - (Number(ba?.savedAt) || 0);
+      });
+    } else {
+      // recent
+      list.sort((a, b) => {
+        const ba = bookmarks[getJobKey(a)];
+        const bb = bookmarks[getJobKey(b)];
+        return (Number(bb?.savedAt) || 0) - (Number(ba?.savedAt) || 0);
+      });
+    }
   }
 
   jobsView = list;
 
+  // 북마크 탭이면 stats 갱신
+  if (state.view === "bookmarks") renderBmStats();
+
   renderActiveChips(state);
   renderRecentSearches();
-  renderList(jobsView, state.q);
+  renderList(jobsView, state.q, totalBase);
   saveUiState();
 }
 
@@ -410,24 +524,40 @@ function toggleBookmark(job) {
   const key = getJobKey(job);
   const existed = !!bookmarks[key];
 
-  if (existed) delete bookmarks[key];
-  else bookmarks[key] = { savedAt: Date.now(), tags: [], note: "" };
+  if (existed) {
+    delete bookmarks[key];
+    saveBookmarks(bookmarks);
+    applyFiltersAndRender();
+    toast("북마크 해제됨");
+    if (modalJob && getJobKey(modalJob) === key) openModal(modalJob);
+    return;
+  }
 
+  bookmarks[key] = normalizeBookmarkEntry({ savedAt: Date.now(), tags: [], note: "", status: "interested" });
   saveBookmarks(bookmarks);
   applyFiltersAndRender();
+  toast("북마크 추가됨 (관심)");
 
-  toast(existed ? "북마크 해제됨" : "북마크 추가됨");
   if (modalJob && getJobKey(modalJob) === key) openModal(modalJob);
 }
 
-function saveBookmarkMeta(job, tags, note) {
+function saveBookmarkMeta(job, status, tags, note) {
   const key = getJobKey(job);
-  if (!bookmarks[key]) bookmarks[key] = { savedAt: Date.now(), tags: [], note: "" };
-  bookmarks[key].tags = tags;
-  bookmarks[key].note = note;
+  if (!bookmarks[key]) bookmarks[key] = normalizeBookmarkEntry({ savedAt: Date.now(), tags: [], note: "", status: "interested" });
+
+  const next = normalizeBookmarkEntry({
+    ...bookmarks[key],
+    status: (status && BM_STATUS[status]) ? status : bookmarks[key].status,
+    tags,
+    note,
+    savedAt: Date.now(), // 메타 수정도 "최근"으로 잡히게
+  });
+
+  bookmarks[key] = next;
   saveBookmarks(bookmarks);
   applyFiltersAndRender();
   toast("저장됨 ✅");
+
   if (modalJob && getJobKey(modalJob) === key) openModal(modalJob);
 }
 
@@ -461,6 +591,7 @@ function openModal(job) {
 
   body.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      ${isBm ? `<span class="pill status-pill">${escapeHtml(getBmStatusLabel(bm.status))}</span>` : ""}
       ${recruitType ? `<span class="pill">${escapeHtml(recruitType)}</span>` : ""}
       ${hireType ? `<span class="pill">${escapeHtml(hireType)}</span>` : ""}
       ${region ? `<span class="pill">${escapeHtml(region)}</span>` : ""}
@@ -476,8 +607,11 @@ function openModal(job) {
     ${bm?.note ? `<div style="margin-top:14px;"><b>메모</b><div style="margin-top:6px;color:#64748b">${escapeHtml(bm.note).replaceAll("\n","<br>")}</div></div>` : ""}
   `;
 
+  const statusSel = document.getElementById("bmStatus");
   const tagsInput = document.getElementById("bmTagsInput");
   const noteInput = document.getElementById("bmNote");
+
+  if (statusSel) statusSel.value = (bm?.status && BM_STATUS[bm.status]) ? bm.status : "interested";
   if (tagsInput) tagsInput.value = (bm?.tags || []).join(",");
   if (noteInput) noteInput.value = bm?.note || "";
 
@@ -515,6 +649,12 @@ function restoreUiState() {
 
   const sortEl = document.getElementById("sortFilter");
   if (sortEl) sortEl.value = st.sort || "default";
+
+  // ✅ 북마크 탭 컨트롤 복원
+  const bmStatus = document.getElementById("bmStatusFilter");
+  const bmSort = document.getElementById("bmSort");
+  if (bmStatus) bmStatus.value = st.bmStatus || "all";
+  if (bmSort) bmSort.value = st.bmSort || "recent";
 
   document.querySelectorAll(`input[type="checkbox"][name="region"]`).forEach(n => n.checked = (st.regions || []).includes(n.value));
   document.querySelectorAll(`input[type="checkbox"][name="type"]`).forEach(n => n.checked = (st.types || []).includes(n.value));
@@ -645,7 +785,21 @@ function wireUI() {
 
   // bottom tabs
   document.getElementById("tabAll")?.addEventListener("click", () => { setView("all"); applyFiltersAndRender(); });
-  document.getElementById("tabBookmarks")?.addEventListener("click", () => { setView("bookmarks"); applyFiltersAndRender(); });
+  document.getElementById("tabBookmarks")?.addEventListener("click", () => { setView("bookmarks"); renderBmStats(); applyFiltersAndRender(); });
+
+  // ✅ 북마크 컨트롤: 상태/정렬
+  document.getElementById("bmStatusFilter")?.addEventListener("change", () => applyFiltersAndRender());
+  document.getElementById("bmSort")?.addEventListener("change", () => applyFiltersAndRender());
+
+  // ✅ 통계 배지 클릭 -> 상태 필터 바로 적용
+  document.getElementById("bmStats")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-bm-filter]");
+    if (!btn) return;
+    const v = btn.dataset.bmFilter || "all";
+    const sel = document.getElementById("bmStatusFilter");
+    if (sel) sel.value = v;
+    applyFiltersAndRender();
+  });
 
   // ✅ Reset (capture delegation)
   document.addEventListener("click", (e) => {
@@ -656,6 +810,11 @@ function wireUI() {
     try {
       localStorage.removeItem(UI_STATE_KEY);
       setView("all");
+
+      const bmStatus = document.getElementById("bmStatusFilter");
+      const bmSort = document.getElementById("bmSort");
+      if (bmStatus) bmStatus.value = "all";
+      if (bmSort) bmSort.value = "recent";
 
       const search = document.getElementById("search");
       if (search) { search.value = ""; search.blur(); }
@@ -757,10 +916,21 @@ function wireUI() {
 
   document.getElementById("btnSaveBmMeta")?.addEventListener("click", () => {
     if (!modalJob) return;
+
+    const status = document.getElementById("bmStatus")?.value || "interested";
     const tagsRaw = (document.getElementById("bmTagsInput")?.value || "").trim();
     const note = (document.getElementById("bmNote")?.value || "").trim();
     const tags = tagsRaw ? tagsRaw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 20) : [];
-    saveBookmarkMeta(modalJob, tags, note);
+
+    // 북마크가 아닌데 저장 누르면 자동 북마크 + 저장
+    const key = getJobKey(modalJob);
+    if (!bookmarks[key]) {
+      bookmarks[key] = normalizeBookmarkEntry({ savedAt: Date.now(), tags: [], note: "", status: "interested" });
+      saveBookmarks(bookmarks);
+      toast("북마크 추가됨 (자동) ⭐", { duration: 1400 });
+    }
+
+    saveBookmarkMeta(modalJob, status, tags, note);
   });
 
   document.getElementById("btnCopy")?.addEventListener("click", async () => {
