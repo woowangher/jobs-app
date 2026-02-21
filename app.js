@@ -3,10 +3,10 @@
 // =====================
 // Storage Keys
 // =====================
-const BOOKMARK_KEY = "jobs-app:bookmarks:v2"; // ✅ v2: meta 포함
+const BOOKMARK_KEY = "jobs-app:bookmarks:v2"; // v2: meta 포함
 const UI_STATE_KEY = "jobs-app:ui-state:v2";
 const RECENT_SEARCH_KEY = "jobs-app:recent-searches:v1";
-const SNAPSHOT_KEY = "jobs-app:last-snapshot:v1"; // NEW 배지용 (간단)
+const SNAPSHOT_KEY = "jobs-app:last-snapshot:v1"; // NEW 배지용
 
 // =====================
 // Helpers (Storage)
@@ -110,12 +110,23 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+function parseQueryTokens(raw) {
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  const includeTokens = [];
+  const excludeTokens = [];
+  for (const t of tokens) {
+    if (t.startsWith("-") && t.length > 1) excludeTokens.push(t.slice(1).toLowerCase());
+    else includeTokens.push(t.toLowerCase());
+  }
+  return { includeTokens, excludeTokens };
+}
+
 function highlight(text, q) {
   const s = String(text ?? "");
   const raw = String(q ?? "").trim();
   if (!raw) return escapeHtml(s);
 
-  const { includeTokens } = parseQueryTokens(raw);
+  const { includeTokens } = parseQueryTokens(raw.toLowerCase());
   let out = escapeHtml(s);
 
   for (const token of includeTokens) {
@@ -145,32 +156,15 @@ function outerHeight(el) {
 }
 
 // =====================
-// Query Parsing (include / exclude tokens)
-// ex: "개발 백엔드 -인턴 -계약"
-// =====================
-function parseQueryTokens(raw) {
-  const tokens = raw.split(/\s+/).filter(Boolean);
-  const includeTokens = [];
-  const excludeTokens = [];
-  for (const t of tokens) {
-    if (t.startsWith("-") && t.length > 1) excludeTokens.push(t.slice(1).toLowerCase());
-    else includeTokens.push(t.toLowerCase());
-  }
-  return { includeTokens, excludeTokens };
-}
-
-// =====================
-// Search Scoring (제목>기관>기타 가중치)
+// Search Scoring
 // =====================
 function scoreJob(job, includeTokens, excludeTokens) {
-  // exclude
   if (excludeTokens.length) {
     const blob = job.__searchText || "";
     for (const x of excludeTokens) {
       if (x && blob.includes(x)) return -999999;
     }
   }
-
   if (!includeTokens.length) return 0;
 
   const title = (job.recrutPbancTtl || "").toLowerCase();
@@ -182,8 +176,6 @@ function scoreJob(job, includeTokens, excludeTokens) {
   let score = 0;
   for (const t of includeTokens) {
     if (!t) continue;
-
-    // must match somewhere
     if (!blob.includes(t)) return -999999;
 
     if (title.includes(t)) score += 50;
@@ -196,7 +188,7 @@ function scoreJob(job, includeTokens, excludeTokens) {
 }
 
 // =====================
-// Dedup + Normalize
+// Dedup
 // =====================
 function dedupeJobs(jobs) {
   const map = new Map();
@@ -215,6 +207,36 @@ function renderRecentSearches() {
   if (!el) return;
   const arr = loadRecentSearches();
   el.innerHTML = arr.map(v => `<option value="${escapeHtml(v)}"></option>`).join("");
+}
+
+// =====================
+// UI: Tabs
+// =====================
+function setView(view) {
+  __view = view;
+  const tabAll = document.getElementById("tabAll");
+  const tabBm = document.getElementById("tabBookmarks");
+  if (tabAll && tabBm) {
+    tabAll.classList.toggle("is-active", view === "all");
+    tabBm.classList.toggle("is-active", view === "bookmarks");
+  }
+  applyFilters(true);
+}
+
+// =====================
+// UI: Checkbox helpers
+// =====================
+function getCheckedValues(name) {
+  const nodes = document.querySelectorAll(`input[type="checkbox"][name="${name}"]`);
+  return Array.from(nodes).filter(n => n.checked).map(n => n.value);
+}
+function setCheckbox(name, value, checked) {
+  const nodes = document.querySelectorAll(`input[type="checkbox"][name="${name}"]`);
+  for (const n of nodes) if (n.value === value) n.checked = checked;
+}
+function setSearch(v) {
+  const el = document.getElementById("search");
+  if (el) el.value = v;
 }
 
 // =====================
@@ -252,36 +274,6 @@ function renderActiveChips(state) {
     items[idx]?.clear?.();
     applyFilters(true);
   };
-}
-
-// =====================
-// UI: Tabs
-// =====================
-function setView(view) {
-  __view = view;
-  const tabAll = document.getElementById("tabAll");
-  const tabBm = document.getElementById("tabBookmarks");
-  if (tabAll && tabBm) {
-    tabAll.classList.toggle("is-active", view === "all");
-    tabBm.classList.toggle("is-active", view === "bookmarks");
-  }
-  applyFilters(true);
-}
-
-// =====================
-// UI: Checkbox helpers
-// =====================
-function getCheckedValues(name) {
-  const nodes = document.querySelectorAll(`input[type="checkbox"][name="${name}"]`);
-  return Array.from(nodes).filter(n => n.checked).map(n => n.value);
-}
-function setCheckbox(name, value, checked) {
-  const nodes = document.querySelectorAll(`input[type="checkbox"][name="${name}"]`);
-  for (const n of nodes) if (n.value === value) n.checked = checked;
-}
-function setSearch(v) {
-  const el = document.getElementById("search");
-  if (el) el.value = v;
 }
 
 // =====================
@@ -387,7 +379,6 @@ function renderWindow({ reset = false, scrollAdjust = 0 } = {}) {
 
   updateCount(grid.children.length, total);
 
-  // 저장 (상태/스크롤)
   saveUiState();
 }
 
@@ -397,10 +388,6 @@ function sumTopHeights(n) {
   let sum = 0;
   for (let i = 0; i < n && i < grid.children.length; i++) sum += outerHeight(grid.children[i]);
   return sum;
-}
-
-function sumNewTopHeights(n) {
-  return sumTopHeights(n);
 }
 
 function canShiftForward() { return __windowEnd < __currentFiltered.length; }
@@ -440,13 +427,13 @@ function shiftBackward() {
   __windowEnd = Math.min(total, newEnd);
 
   renderWindow({ reset: false, scrollAdjust: 0 });
-  const addedHeight = sumNewTopHeights(addedCount);
 
+  // 새로 위에 추가된 만큼 scroll 유지
+  const addedHeight = sumTopHeights(addedCount);
   const wrapper = document.getElementById("list-wrapper");
   if (wrapper) wrapper.scrollTop += addedHeight;
 }
 
-// IO paging
 function setupIntersectionPaging() {
   const wrapper = document.getElementById("list-wrapper");
   const topSentinel = document.getElementById("sentinel-top");
@@ -484,7 +471,7 @@ function setupIntersectionPaging() {
 }
 
 // =====================
-// Bookmarks (toggle + meta)
+// Bookmarks
 // =====================
 function toggleBookmark(job) {
   const key = getJobKey(job);
@@ -495,8 +482,10 @@ function toggleBookmark(job) {
 
   saveBookmarks(__bookmarks);
 
-  // 상단 카운트 갱신 + 현재 리스트 다시 렌더(별/태그 반영)
   renderWindow({ reset: false, scrollAdjust: 0 });
+
+  // 모달 열려있으면 버튼/입력 상태 갱신
+  if (__modalJob) openModal(__modalJob);
 }
 
 function updateBookmarkMeta(job, { tags, note }) {
@@ -506,10 +495,11 @@ function updateBookmarkMeta(job, { tags, note }) {
   __bookmarks[key].note = note;
   saveBookmarks(__bookmarks);
   renderWindow({ reset: false, scrollAdjust: 0 });
+  if (__modalJob) openModal(__modalJob);
 }
 
 // =====================
-// Modal
+// Modal (✅ 닫힘 버그 해결 포함)
 // =====================
 function openModal(job) {
   __modalJob = job;
@@ -552,16 +542,14 @@ function openModal(job) {
       ${url ? `<div><b>링크</b>: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></div>` : `<div><b>링크</b>: 없음</div>`}
     </div>
 
-    ${bm?.note ? `<div style="margin-top:14px;"><b>메모</b><div style="margin-top:6px;color:var(--muted)">${escapeHtml(bm.note).replaceAll("\n","<br>")}</div></div>` : ""}
+    ${bm?.note ? `<div style="margin-top:14px;"><b>메모</b><div style="margin-top:6px;color:#64748b">${escapeHtml(bm.note).replaceAll("\n","<br>")}</div></div>` : ""}
   `;
 
-  // meta inputs
   const tagsInput = document.getElementById("bmTagsInput");
   const noteInput = document.getElementById("bmNote");
   if (tagsInput) tagsInput.value = (bm?.tags || []).join(",");
   if (noteInput) noteInput.value = bm?.note || "";
 
-  // buttons
   const btnToggle = document.getElementById("btnToggleBookmark");
   if (btnToggle) btnToggle.textContent = isBm ? "북마크 해제" : "북마크 추가";
 
@@ -569,8 +557,7 @@ function openModal(job) {
   modal.hidden = false;
 
   // focus
-  const closeBtn = document.getElementById("btnCloseModal");
-  closeBtn?.focus();
+  document.getElementById("btnCloseModal")?.focus();
 }
 
 function closeModal() {
@@ -593,7 +580,6 @@ function getUiSnapshot() {
   const due7 = !!document.getElementById("due7")?.checked;
   const onlyToday = !!document.getElementById("onlyToday")?.checked;
   const view = __view;
-
   return { q, sort, regions, types, onlyOpen, due7, onlyToday, view };
 }
 
@@ -603,16 +589,13 @@ function applyFilters(reset = true) {
   const rawQ = state.q.toLowerCase();
   const { includeTokens, excludeTokens } = parseQueryTokens(rawQ);
 
-  // base list
   let list = __allJobs;
 
-  // view: bookmarks
   if (state.view === "bookmarks") {
     const keys = new Set(Object.keys(__bookmarks));
     list = list.filter(j => keys.has(getJobKey(j)));
   }
 
-  // region/type multi
   if (state.regions.length) {
     const needles = state.regions.map(x => x.toLowerCase());
     list = list.filter(job => {
@@ -629,7 +612,6 @@ function applyFilters(reset = true) {
     });
   }
 
-  // onlyOpen (마감 제외)
   if (state.onlyOpen) {
     list = list.filter(job => {
       const d = daysUntil(job.pbancEndYmd);
@@ -637,7 +619,6 @@ function applyFilters(reset = true) {
     });
   }
 
-  // due7
   if (state.due7) {
     list = list.filter(job => {
       const d = daysUntil(job.pbancEndYmd);
@@ -645,14 +626,12 @@ function applyFilters(reset = true) {
     });
   }
 
-  // onlyToday (시작일이 오늘)
   if (state.onlyToday) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     list = list.filter(job => parseYmd(job.pbancBgngYmd) === today);
   }
 
-  // search scoring
   if (rawQ) {
     const scored = [];
     for (const job of list) {
@@ -663,7 +642,6 @@ function applyFilters(reset = true) {
     list = scored.map(x => x.job);
   }
 
-  // sort
   if (state.sort === "deadline") {
     list.sort((a, b) => {
       const ta = parseYmd(a.pbancEndYmd);
@@ -687,15 +665,12 @@ function applyFilters(reset = true) {
   __currentFiltered = list;
   __currentQuery = state.q;
 
-  // chips
   renderActiveChips(state);
 
-  // window reset
   if (reset) {
     __windowStart = 0;
     __windowEnd = Math.min(WINDOW_SIZE, __currentFiltered.length);
   } else {
-    // 안전: 범위 clamp
     __windowStart = Math.max(0, Math.min(__windowStart, Math.max(0, __currentFiltered.length - 1)));
     __windowEnd = Math.max(__windowStart, Math.min(__windowStart + WINDOW_SIZE, __currentFiltered.length));
   }
@@ -703,7 +678,6 @@ function applyFilters(reset = true) {
   renderWindow({ reset: reset, scrollAdjust: 0 });
   setupIntersectionPaging();
 
-  // recent searches
   if (state.q) saveRecentSearch(state.q);
   renderRecentSearches();
 }
@@ -730,22 +704,15 @@ function restoreUiState() {
   const st = safeJsonParse(raw, null);
   if (!st || typeof st !== "object") return false;
 
-  // view
   setView(st.view === "bookmarks" ? "bookmarks" : "all");
 
-  // search/sort
   setSearch(st.q || "");
   const sortEl = document.getElementById("sortFilter");
   if (sortEl && st.sort) sortEl.value = st.sort;
 
-  // regions/types
-  const regionNodes = document.querySelectorAll(`input[type="checkbox"][name="region"]`);
-  regionNodes.forEach(n => n.checked = (st.regions || []).includes(n.value));
+  document.querySelectorAll(`input[type="checkbox"][name="region"]`).forEach(n => n.checked = (st.regions || []).includes(n.value));
+  document.querySelectorAll(`input[type="checkbox"][name="type"]`).forEach(n => n.checked = (st.types || []).includes(n.value));
 
-  const typeNodes = document.querySelectorAll(`input[type="checkbox"][name="type"]`);
-  typeNodes.forEach(n => n.checked = (st.types || []).includes(n.value));
-
-  // options
   const onlyOpen = document.getElementById("onlyOpen");
   const due7 = document.getElementById("due7");
   const onlyToday = document.getElementById("onlyToday");
@@ -753,17 +720,14 @@ function restoreUiState() {
   if (due7) due7.checked = !!st.due7;
   if (onlyToday) onlyToday.checked = !!st.onlyToday;
 
-  // apply (reset true, then set window)
   applyFilters(true);
 
-  // window restore (가능하면)
   if (Number.isFinite(st.windowStart) && Number.isFinite(st.windowEnd)) {
     __windowStart = Math.max(0, Math.min(st.windowStart, __currentFiltered.length));
     __windowEnd = Math.max(__windowStart, Math.min(st.windowEnd, __currentFiltered.length));
     renderWindow({ reset: true, scrollAdjust: 0 });
   }
 
-  // scroll restore
   const wrapper = document.getElementById("list-wrapper");
   if (wrapper && Number.isFinite(st.scrollTop)) wrapper.scrollTop = st.scrollTop;
 
@@ -787,7 +751,42 @@ function resetAll() {
 }
 
 // =====================
-// Wire UI
+// NEW badge
+// =====================
+function updateNewBadge(currentJobs) {
+  const badge = document.getElementById("newBadge");
+  if (!badge) return;
+
+  const prev = safeJsonParse(localStorage.getItem(SNAPSHOT_KEY) || "null", null);
+  const keys = currentJobs.map(getJobKey);
+
+  localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ keys: keys.slice(0, 200), at: Date.now() }));
+
+  if (!prev?.keys?.length) {
+    badge.hidden = true;
+    return;
+  }
+
+  const prevSet = new Set(prev.keys);
+  const newCount = keys.slice(0, 200).filter(k => !prevSet.has(k)).length;
+  badge.hidden = newCount === 0;
+  if (!badge.hidden) badge.textContent = `NEW ${newCount}`;
+}
+
+// =====================
+// Service Worker
+// =====================
+async function registerSW() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    await navigator.serviceWorker.register("./sw.js");
+  } catch (e) {
+    console.warn("SW register failed:", e);
+  }
+}
+
+// =====================
+// Wire UI (✅ 모달 닫힘 버그 수정 핵심 포함)
 // =====================
 function wireUI() {
   // tabs
@@ -818,6 +817,9 @@ function wireUI() {
   // cards: open modal on click/enter
   const grid = document.getElementById("jobs-grid");
   grid?.addEventListener("click", (e) => {
+    // ✅ 모달이 열려있으면 grid 클릭 무시 (뒤로 전파되는 케이스 방지)
+    if (__modalJob) return;
+
     const bmBtn = e.target.closest(".bm-btn");
     if (bmBtn) {
       const key = bmBtn.dataset.bm;
@@ -836,6 +838,7 @@ function wireUI() {
 
   grid?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
+    if (__modalJob) return;
     const card = e.target.closest(".job-card");
     if (!card) return;
     const key = card.dataset.key;
@@ -843,20 +846,34 @@ function wireUI() {
     if (job) openModal(job);
   });
 
+  // ✅ 모달 자체 클릭은 아래로 전파 차단 (핵심)
+  document.getElementById("jobModal")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
   // modal controls
-  document.getElementById("btnCloseModal")?.addEventListener("click", closeModal);
-  document.getElementById("modalBackdrop")?.addEventListener("click", closeModal);
+  document.getElementById("btnCloseModal")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeModal();
+  });
+
+  document.getElementById("modalBackdrop")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeModal();
+  });
+
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeModal();
   });
 
-  document.getElementById("btnToggleBookmark")?.addEventListener("click", () => {
+  document.getElementById("btnToggleBookmark")?.addEventListener("click", (e) => {
+    e.stopPropagation();
     if (!__modalJob) return;
     toggleBookmark(__modalJob);
-    openModal(__modalJob); // refresh modal state
   });
 
-  document.getElementById("btnSaveBmMeta")?.addEventListener("click", () => {
+  document.getElementById("btnSaveBmMeta")?.addEventListener("click", (e) => {
+    e.stopPropagation();
     if (!__modalJob) return;
     const tagsRaw = (document.getElementById("bmTagsInput")?.value || "").trim();
     const note = (document.getElementById("bmNote")?.value || "").trim();
@@ -864,10 +881,10 @@ function wireUI() {
       ? tagsRaw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 20)
       : [];
     updateBookmarkMeta(__modalJob, { tags, note });
-    openModal(__modalJob);
   });
 
-  document.getElementById("btnCopy")?.addEventListener("click", async () => {
+  document.getElementById("btnCopy")?.addEventListener("click", async (e) => {
+    e.stopPropagation();
     if (!__modalJob) return;
     const url = __modalJob.srcUrl || "";
     if (!url) return alert("복사할 링크가 없어요.");
@@ -879,7 +896,8 @@ function wireUI() {
     }
   });
 
-  document.getElementById("btnShare")?.addEventListener("click", async () => {
+  document.getElementById("btnShare")?.addEventListener("click", async (e) => {
+    e.stopPropagation();
     if (!__modalJob) return;
     const title = __modalJob.recrutPbancTtl || "채용 공고";
     const url = __modalJob.srcUrl || "";
@@ -895,46 +913,9 @@ function wireUI() {
   // save state on scroll
   const wrapper = document.getElementById("list-wrapper");
   wrapper?.addEventListener("scroll", () => {
-    // 너무 잦지 않게
     window.clearTimeout(wireUI.__st);
     wireUI.__st = window.setTimeout(() => saveUiState(), 150);
   }, { passive: true });
-}
-
-// =====================
-// NEW badge (snapshot diff)
-// =====================
-function updateNewBadge(currentJobs) {
-  const badge = document.getElementById("newBadge");
-  if (!badge) return;
-
-  const prev = safeJsonParse(localStorage.getItem(SNAPSHOT_KEY) || "null", null);
-  const keys = currentJobs.map(getJobKey);
-
-  // store snapshot (last 200 keys)
-  localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ keys: keys.slice(0, 200), at: Date.now() }));
-
-  if (!prev?.keys?.length) {
-    badge.hidden = true;
-    return;
-  }
-
-  const prevSet = new Set(prev.keys);
-  const newCount = keys.slice(0, 200).filter(k => !prevSet.has(k)).length;
-  badge.hidden = newCount === 0;
-  if (!badge.hidden) badge.textContent = `NEW ${newCount}`;
-}
-
-// =====================
-// Service Worker
-// =====================
-async function registerSW() {
-  if (!("serviceWorker" in navigator)) return;
-  try {
-    await navigator.serviceWorker.register("./sw.js");
-  } catch (e) {
-    console.warn("SW register failed:", e);
-  }
 }
 
 // =====================
@@ -955,7 +936,6 @@ async function loadJobs() {
     let jobs = payload.data?.result || [];
     jobs = dedupeJobs(jobs);
 
-    // searchText 미리 생성
     __allJobs = jobs.map(j => ({
       ...j,
       __searchText: JSON.stringify(j).toLowerCase()
@@ -977,7 +957,6 @@ async function loadJobs() {
   wireUI();
   await loadJobs();
 
-  // UI state restore first
   const restored = restoreUiState();
   if (!restored) applyFilters(true);
 })();
