@@ -115,14 +115,14 @@ function makeCard(job, q) {
       ${highlight(recruitType, q)}${hireType ? " · " + highlight(hireType, q) : ""}
     </p>
     <p style="margin:6px 0 0 0;color:#666;">${highlight(period, q)}</p>
-    ${url ? `<p style="margin-top:8px;"><a href="${url}" target="_blank">공고 링크</a></p>` : ""}
+    ${url ? `<p style="margin-top:8px;"><a href="${url}" target="_blank" rel="noopener noreferrer">공고 링크</a></p>` : ""}
   `;
 
   return card;
 }
 
 // =====================
-// Windowed Render (공백 없음)
+// Windowed Render (DOM 최대 60개 유지)
 // =====================
 function renderWindow(reset = false) {
   const container = document.getElementById("jobs-grid");
@@ -141,7 +141,7 @@ function renderWindow(reset = false) {
     __renderEndIndex = start;
   }
 
-  // 앞쪽 제거
+  // 앞쪽 제거 (윈도우 유지)
   while (__renderStartIndex < start && container.firstChild) {
     container.removeChild(container.firstChild);
     __renderStartIndex++;
@@ -173,12 +173,24 @@ function wireBookmarkClicks() {
     const key = btn.dataset.bm;
     if (!key) return;
 
+    const bmEl = document.getElementById("onlyBookmarked");
+    const onlyBm = bmEl?.checked;
+
     if (bookmarks.has(key)) bookmarks.delete(key);
     else bookmarks.add(key);
 
     saveBookmarks(bookmarks);
+
+    // 북마크만 보기 상태에서 "해제"하면 리스트에서 사라져야 하니까 필터 재적용
+    if (onlyBm && !bookmarks.has(key)) {
+      applyFilters(true);
+      return;
+    }
+
+    // 일반 상태는 버튼만 즉시 반영
     btn.textContent = bookmarks.has(key) ? "★" : "☆";
 
+    // 상단 북마크 숫자만 갱신
     const line = document.getElementById("showing-line");
     if (line) {
       line.innerHTML = line.innerHTML.replace(
@@ -190,7 +202,7 @@ function wireBookmarkClicks() {
 }
 
 // =====================
-// Filters
+// Filters + Sort
 // =====================
 function applyFilters(resetPage = true) {
   const input = document.getElementById("search");
@@ -198,25 +210,64 @@ function applyFilters(resetPage = true) {
   const typeEl = document.getElementById("typeFilter");
   const sortEl = document.getElementById("sortFilter");
   const bmEl = document.getElementById("onlyBookmarked");
+  const wrapper = document.getElementById("list-wrapper");
 
   const q = input?.value.trim().toLowerCase() || "";
   const onlyBm = bmEl?.checked;
 
+  const regionMap = { all: "", seoul: "서울", gyeonggi: "경기" };
+  const typeMap = { all: "", regular: "정규", intern: "인턴" };
+
+  const regionNeedle = (regionMap[regionEl?.value ?? "all"] ?? "").toLowerCase();
+  const typeNeedle = (typeMap[typeEl?.value ?? "all"] ?? "").toLowerCase();
+
   let filtered = __allJobs.filter(job => {
+    // 검색
     if (q && !JSON.stringify(job).toLowerCase().includes(q)) return false;
+
+    // 지역
+    if (regionNeedle) {
+      const regionText = Array.isArray(job.workRgnNmLst)
+        ? job.workRgnNmLst.join(" ").toLowerCase()
+        : String(job.workRgnNmLst ?? "").toLowerCase();
+      if (!regionText.includes(regionNeedle)) return false;
+    }
+
+    // 고용형태
+    if (typeNeedle) {
+      const typeText = Array.isArray(job.hireTypeNmLst)
+        ? job.hireTypeNmLst.join(" ").toLowerCase()
+        : String(job.hireTypeNmLst ?? "").toLowerCase();
+      if (!typeText.includes(typeNeedle)) return false;
+    }
+
     return true;
   });
 
+  // 북마크만
   if (onlyBm) {
     filtered = filtered.filter(job => bookmarks.has(getJobKey(job)));
   }
 
+  // 정렬
   if (sortEl?.value === "deadline") {
-    filtered.sort((a, b) => parseYmd(a.pbancEndYmd) - parseYmd(b.pbancEndYmd));
-  }
-
-  if (sortEl?.value === "latest") {
-    filtered.sort((a, b) => parseYmd(b.pbancBgngYmd) - parseYmd(a.pbancBgngYmd));
+    filtered.sort((a, b) => {
+      const ta = parseYmd(a.pbancEndYmd);
+      const tb = parseYmd(b.pbancEndYmd);
+      if (ta == null && tb == null) return 0;
+      if (ta == null) return 1;
+      if (tb == null) return -1;
+      return ta - tb;
+    });
+  } else if (sortEl?.value === "latest") {
+    filtered.sort((a, b) => {
+      const ta = parseYmd(a.pbancBgngYmd);
+      const tb = parseYmd(b.pbancBgngYmd);
+      if (ta == null && tb == null) return 0;
+      if (ta == null) return 1;
+      if (tb == null) return -1;
+      return tb - ta;
+    });
   }
 
   __currentFiltered = filtered;
@@ -224,22 +275,53 @@ function applyFilters(resetPage = true) {
 
   if (resetPage) currentPage = 1;
 
+  // 필터 바꾸면 리스트 스크롤을 맨 위로
+  if (wrapper && resetPage) wrapper.scrollTop = 0;
+
   renderWindow(true);
 }
 
 // =====================
-// Infinite Scroll
+// Wire UI (검색 디바운스 포함)
+// =====================
+function wireUI() {
+  const input = document.getElementById("search");
+  const regionEl = document.getElementById("regionFilter");
+  const typeEl = document.getElementById("typeFilter");
+  const sortEl = document.getElementById("sortFilter");
+  const bmEl = document.getElementById("onlyBookmarked");
+
+  let t = null;
+
+  if (input) {
+    input.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(() => applyFilters(true), 250);
+    });
+    input.addEventListener("search", () => applyFilters(true));
+  }
+
+  if (regionEl) regionEl.addEventListener("change", () => applyFilters(true));
+  if (typeEl) typeEl.addEventListener("change", () => applyFilters(true));
+  if (sortEl) sortEl.addEventListener("change", () => applyFilters(true));
+  if (bmEl) bmEl.addEventListener("change", () => applyFilters(true));
+}
+
+// =====================
+// Infinite Scroll (컨테이너 스크롤 기반)
 // =====================
 function wireInfiniteScroll() {
-  window.addEventListener("scroll", () => {
+  const wrapper = document.getElementById("list-wrapper");
+  if (!wrapper) return;
+
+  wrapper.addEventListener("scroll", () => {
     const total = __currentFiltered.length;
     if (!total) return;
 
     const nearBottom =
-      window.innerHeight + window.scrollY >= document.body.offsetHeight - 200;
+      wrapper.scrollTop + wrapper.clientHeight >= wrapper.scrollHeight - 150;
 
     if (!nearBottom) return;
-
     if (currentPage * PAGE_SIZE >= total) return;
 
     currentPage++;
@@ -251,27 +333,30 @@ function wireInfiniteScroll() {
 // Load
 // =====================
 async function loadJobs() {
-  const res = await fetch(API_URL, { cache: "no-store" });
-  const payload = await res.json();
+  try {
+    const res = await fetch(API_URL, { cache: "no-store" });
+    const payload = await res.json();
 
-  if (!payload.ok) {
-    document.body.innerHTML = "<h2>API ok:false</h2>";
-    return;
+    if (!payload.ok) {
+      document.body.innerHTML = "<h2>API ok:false</h2>";
+      return;
+    }
+
+    const jobs = payload.data?.result || [];
+    __allJobs = jobs;
+
+    // ✅ 중요: index.html의 #list-wrapper/#jobs-grid 구조를 "지우지 말 것"
+    // root.innerHTML = ... 절대 하지 않음
+
+    wireBookmarkClicks();
+    wireUI();
+    wireInfiniteScroll();
+
+    applyFilters(true);
+  } catch (err) {
+    console.error(err);
+    document.body.innerHTML = "<h2>JS ERROR 발생</h2>";
   }
-
-  const jobs = payload.data?.result || [];
-
-  const root = document.getElementById("jobs");
-  root.innerHTML = `
-    <p id="showing-line"></p>
-    <div id="jobs-grid"></div>
-  `;
-
-  __allJobs = jobs;
-
-  wireBookmarkClicks();
-  wireInfiniteScroll();
-  applyFilters(true);
 }
 
 loadJobs();
