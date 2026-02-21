@@ -23,19 +23,17 @@ let bookmarks = loadBookmarks();
 let __allJobs = [];
 
 // =====================
-// Virtualized Scroll State
+// Infinite Scroll State
 // =====================
-const PAGE_SIZE = 20;             // 한 번에 더하는 단위
-const WINDOW_PAGES = 3;           // 화면에 유지할 페이지 수 (3페이지=60개)
-const EST_CARD_HEIGHT = 150;      // 카드 대략 높이(px) - UI 바꾸면 조정
+const PAGE_SIZE = 20;
+const WINDOW_PAGES = 3; // 최대 60개 유지
 let currentPage = 1;
 
 let __currentFiltered = [];
 let __currentQuery = "";
 
-// DOM 윈도우 관리
-let __renderStartIndex = 0;       // 현재 DOM에 남겨진 시작 인덱스
-let __renderEndIndex = 0;         // 현재 DOM에 남겨진 끝 인덱스(미포함)
+let __renderStartIndex = 0;
+let __renderEndIndex = 0;
 
 // =====================
 // Utils
@@ -84,14 +82,14 @@ function updateCount(showing, total) {
 }
 
 // =====================
-// Card HTML builder
+// Card Builder
 // =====================
 function makeCard(job, q) {
   const card = document.createElement("div");
-  card.className = "job-card"; // (styles.css에서 손대기 쉬움)
   card.style.border = "1px solid #ccc";
-  card.style.padding = "10px";
+  card.style.padding = "12px";
   card.style.margin = "10px 0";
+  card.style.borderRadius = "8px";
 
   const title = job.recrutPbancTtl || "제목 없음";
   const company = job.instNm || "";
@@ -105,91 +103,61 @@ function makeCard(job, q) {
   const star = bookmarks.has(key) ? "★" : "☆";
 
   card.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
       <h3 style="margin:0;">${highlight(title, q)}</h3>
-      <button class="bm-btn" data-bm="${key}" style="border:0;background:none;font-size:18px;cursor:pointer;">${star}</button>
+      <button class="bm-btn" data-bm="${key}" style="border:0;background:none;font-size:18px;cursor:pointer;">
+        ${star}
+      </button>
     </div>
     <p style="margin:6px 0 0 0;"><b>${highlight(company, q)}</b></p>
     <p style="margin:6px 0 0 0;color:#666;">${highlight(region, q)}</p>
-    <p style="margin:6px 0 0 0;color:#666;">${highlight(recruitType, q)}${hireType ? " · " + highlight(hireType, q) : ""}</p>
+    <p style="margin:6px 0 0 0;color:#666;">
+      ${highlight(recruitType, q)}${hireType ? " · " + highlight(hireType, q) : ""}
+    </p>
     <p style="margin:6px 0 0 0;color:#666;">${highlight(period, q)}</p>
-    ${url ? `<p style="margin:8px 0 0 0;"><a href="${url}" target="_blank" rel="noopener noreferrer">공고 링크</a></p>` : ""}
+    ${url ? `<p style="margin-top:8px;"><a href="${url}" target="_blank">공고 링크</a></p>` : ""}
   `;
 
   return card;
 }
 
 // =====================
-// Virtualized Render (keep only WINDOW_PAGES * PAGE_SIZE cards)
+// Windowed Render (공백 없음)
 // =====================
 function renderWindow(reset = false) {
   const container = document.getElementById("jobs-grid");
   if (!container) return;
 
-  // 스페이서가 없으면 만들기
-  let topSpacer = document.getElementById("top-spacer");
-  let bottomSpacer = document.getElementById("bottom-spacer");
-  if (!topSpacer) {
-    topSpacer = document.createElement("div");
-    topSpacer.id = "top-spacer";
-    container.parentNode.insertBefore(topSpacer, container);
-  }
-  if (!bottomSpacer) {
-    bottomSpacer = document.createElement("div");
-    bottomSpacer.id = "bottom-spacer";
-    container.parentNode.insertBefore(bottomSpacer, container.nextSibling);
-  }
-
   const total = __currentFiltered.length;
   const loadedCount = Math.min(currentPage * PAGE_SIZE, total);
 
-  // 이번에 보여줄 "윈도우" 범위 계산
-  const windowSize = PAGE_SIZE * WINDOW_PAGES; // 60
-  const end = loadedCount;                     // 지금까지 로드된 끝
-  const start = Math.max(0, end - windowSize); // 끝에서 windowSize만 남김
+  const windowSize = PAGE_SIZE * WINDOW_PAGES; // 60개
+  const end = loadedCount;
+  const start = Math.max(0, end - windowSize);
 
-  // reset이면 완전 초기화
   if (reset) {
     container.innerHTML = "";
     __renderStartIndex = start;
     __renderEndIndex = start;
   }
 
-  // 스페이서 높이: 앞에 버린 만큼 + 뒤에 남은 만큼
-  topSpacer.style.height = `${start * EST_CARD_HEIGHT}px`;
-  bottomSpacer.style.height = `${Math.max(0, total - end) * EST_CARD_HEIGHT}px`;
-
-  // 컨테이너에 남길 범위로 업데이트
-  // (현재 DOM 범위: __renderStartIndex ~ __renderEndIndex)
-  // 목표 범위: start ~ end
-
-  // 1) 앞쪽이 더 크면(즉 start가 앞으로 당겨지면) -> 전체 리렌더가 더 안전
-  // (검색/정렬 변경 때)
-  if (start < __renderStartIndex) {
-    container.innerHTML = "";
-    __renderStartIndex = start;
-    __renderEndIndex = start;
-  }
-
-  // 2) 필요 없는 앞쪽 제거
+  // 앞쪽 제거
   while (__renderStartIndex < start && container.firstChild) {
     container.removeChild(container.firstChild);
     __renderStartIndex++;
   }
 
-  // 3) 뒤쪽 추가
+  // 뒤쪽 추가
   for (let i = __renderEndIndex; i < end; i++) {
-    const job = __currentFiltered[i];
-    container.appendChild(makeCard(job, __currentQuery));
+    container.appendChild(makeCard(__currentFiltered[i], __currentQuery));
     __renderEndIndex++;
   }
 
-  // 카운트 업데이트(Showing=로드된 개수 / Total=필터된 전체)
   updateCount(loadedCount, total);
 }
 
 // =====================
-// Bookmark Click (event delegation)
+// Bookmark Click
 // =====================
 function wireBookmarkClicks() {
   const container = document.getElementById("jobs-grid");
@@ -211,7 +179,6 @@ function wireBookmarkClicks() {
     saveBookmarks(bookmarks);
     btn.textContent = bookmarks.has(key) ? "★" : "☆";
 
-    // 상단 북마크 숫자만 즉시 반영
     const line = document.getElementById("showing-line");
     if (line) {
       line.innerHTML = line.innerHTML.replace(
@@ -223,7 +190,7 @@ function wireBookmarkClicks() {
 }
 
 // =====================
-// Filtering + Sorting
+// Filters
 // =====================
 function applyFilters(resetPage = true) {
   const input = document.getElementById("search");
@@ -233,34 +200,10 @@ function applyFilters(resetPage = true) {
   const bmEl = document.getElementById("onlyBookmarked");
 
   const q = input?.value.trim().toLowerCase() || "";
-  const regionKey = regionEl ? regionEl.value : "all";
-  const typeKey = typeEl ? typeEl.value : "all";
-  const sortKey = sortEl ? sortEl.value : "default";
-  const onlyBm = bmEl ? bmEl.checked : false;
+  const onlyBm = bmEl?.checked;
 
-  const regionMap = { all: "", seoul: "서울", gyeonggi: "경기" };
-  const typeMap = { all: "", regular: "정규", intern: "인턴" };
-
-  const regionNeedle = (regionMap[regionKey] ?? "").toLowerCase();
-  const typeNeedle = (typeMap[typeKey] ?? "").toLowerCase();
-
-  let filtered = __allJobs.filter((job) => {
-    if (q && !JSON.stringify(job ?? {}).toLowerCase().includes(q)) return false;
-
-    if (regionNeedle) {
-      const regionText = Array.isArray(job.workRgnNmLst)
-        ? job.workRgnNmLst.join(" ").toLowerCase()
-        : String(job.workRgnNmLst ?? "").toLowerCase();
-      if (!regionText.includes(regionNeedle)) return false;
-    }
-
-    if (typeNeedle) {
-      const typeText = Array.isArray(job.hireTypeNmLst)
-        ? job.hireTypeNmLst.join(" ").toLowerCase()
-        : String(job.hireTypeNmLst ?? "").toLowerCase();
-      if (!typeText.includes(typeNeedle)) return false;
-    }
-
+  let filtered = __allJobs.filter(job => {
+    if (q && !JSON.stringify(job).toLowerCase().includes(q)) return false;
     return true;
   });
 
@@ -268,28 +211,12 @@ function applyFilters(resetPage = true) {
     filtered = filtered.filter(job => bookmarks.has(getJobKey(job)));
   }
 
-  if (sortKey !== "default") {
-    filtered.sort((a, b) => {
-      if (sortKey === "deadline") {
-        const ta = parseYmd(a.pbancEndYmd);
-        const tb = parseYmd(b.pbancEndYmd);
-        if (ta == null && tb == null) return 0;
-        if (ta == null) return 1;
-        if (tb == null) return -1;
-        return ta - tb;
-      }
+  if (sortEl?.value === "deadline") {
+    filtered.sort((a, b) => parseYmd(a.pbancEndYmd) - parseYmd(b.pbancEndYmd));
+  }
 
-      if (sortKey === "latest") {
-        const ta = parseYmd(a.pbancBgngYmd);
-        const tb = parseYmd(b.pbancBgngYmd);
-        if (ta == null && tb == null) return 0;
-        if (ta == null) return 1;
-        if (tb == null) return -1;
-        return tb - ta;
-      }
-
-      return 0;
-    });
+  if (sortEl?.value === "latest") {
+    filtered.sort((a, b) => parseYmd(b.pbancBgngYmd) - parseYmd(a.pbancBgngYmd));
   }
 
   __currentFiltered = filtered;
@@ -297,65 +224,26 @@ function applyFilters(resetPage = true) {
 
   if (resetPage) currentPage = 1;
 
-  // 가상 스크롤 윈도우 렌더 (reset이면 DOM 초기화)
   renderWindow(true);
 }
 
 // =====================
-// Wire UI
+// Infinite Scroll
 // =====================
-function wireUI() {
-  const input = document.getElementById("search");
-  const regionEl = document.getElementById("regionFilter");
-  const typeEl = document.getElementById("typeFilter");
-  const sortEl = document.getElementById("sortFilter");
-  const bmEl = document.getElementById("onlyBookmarked");
-
-  let t = null;
-
-  if (input) {
-    input.addEventListener("input", () => {
-      clearTimeout(t);
-      t = setTimeout(() => applyFilters(true), 250);
-    });
-    input.addEventListener("search", () => applyFilters(true));
-  }
-
-  if (regionEl) regionEl.addEventListener("change", () => applyFilters(true));
-  if (typeEl) typeEl.addEventListener("change", () => applyFilters(true));
-  if (sortEl) sortEl.addEventListener("change", () => applyFilters(true));
-  if (bmEl) bmEl.addEventListener("change", () => applyFilters(true));
-}
-
-// =====================
-// Infinite Scroll + Virtualization trigger
-// =====================
-function wireVirtualScroll() {
-  let ticking = false;
-
+function wireInfiniteScroll() {
   window.addEventListener("scroll", () => {
-    if (ticking) return;
-    ticking = true;
+    const total = __currentFiltered.length;
+    if (!total) return;
 
-    requestAnimationFrame(() => {
-      ticking = false;
+    const nearBottom =
+      window.innerHeight + window.scrollY >= document.body.offsetHeight - 200;
 
-      const total = __currentFiltered.length;
-      if (!total) return;
+    if (!nearBottom) return;
 
-      const nearBottom =
-        window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+    if (currentPage * PAGE_SIZE >= total) return;
 
-      if (!nearBottom) return;
-
-      const canLoadMore = currentPage * PAGE_SIZE < total;
-      if (!canLoadMore) return;
-
-      currentPage += 1;
-
-      // 윈도우 유지하면서 뒤쪽 추가/앞쪽 제거
-      renderWindow(false);
-    });
+    currentPage++;
+    renderWindow(false);
   });
 }
 
@@ -363,36 +251,27 @@ function wireVirtualScroll() {
 // Load
 // =====================
 async function loadJobs() {
-  try {
-    const res = await fetch(API_URL, { cache: "no-store" });
-    const payload = await res.json();
+  const res = await fetch(API_URL, { cache: "no-store" });
+  const payload = await res.json();
 
-    if (!payload.ok) {
-      document.body.innerHTML = "<h2>API ok:false</h2>";
-      return;
-    }
-
-    const jobs = payload.data?.result || [];
-    const root = document.getElementById("jobs");
-    if (!root) return;
-
-    root.innerHTML = `
-      <p id="showing-line"></p>
-      <div id="jobs-grid"></div>
-    `;
-
-    __allJobs = jobs;
-
-    wireBookmarkClicks();
-    wireUI();
-    wireVirtualScroll();
-
-    applyFilters(true);
-
-  } catch (err) {
-    console.error(err);
-    document.body.innerHTML = "<h2>JS ERROR 발생</h2>";
+  if (!payload.ok) {
+    document.body.innerHTML = "<h2>API ok:false</h2>";
+    return;
   }
+
+  const jobs = payload.data?.result || [];
+
+  const root = document.getElementById("jobs");
+  root.innerHTML = `
+    <p id="showing-line"></p>
+    <div id="jobs-grid"></div>
+  `;
+
+  __allJobs = jobs;
+
+  wireBookmarkClicks();
+  wireInfiniteScroll();
+  applyFilters(true);
 }
 
 loadJobs();
