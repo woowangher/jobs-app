@@ -7,10 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Job Board" />
+
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-  <link rel="stylesheet" href="./styles.css?v=20260221_1">
-  <script src="./app.js?v=20260221_1" defer></script>
+
+  <link rel="stylesheet" href="./styles.css?v=stable_sw_1">
+  <script src="./app.js?v=stable_sw_1" defer></script>
   <title>Job Board PWA</title>
 </head>
 
@@ -38,12 +40,12 @@
       <div class="filter-row">
         <div class="field">
           <label for="search">Search</label>
-          <input id="search" type="search" placeholder="title, company, keyword (ex: 개발 -인턴)" list="recentSearches" />
+          <input id="search" type="search" placeholder="title, company, keyword (ex: 개발 -인턴)" list="recentSearches" autocomplete="off" />
           <datalist id="recentSearches"></datalist>
           <div class="hint">팁: 공백으로 여러 키워드, 제외는 <code>-키워드</code> (예: <code>개발 -인턴</code>)</div>
         </div>
 
-        <div class="field">
+        <div class="field" style="max-width:260px;">
           <label for="sortFilter">Sort</label>
           <select id="sortFilter">
             <option value="default">Default</option>
@@ -81,17 +83,19 @@
       <div class="chips-row" id="activeChips" aria-label="Active filters"></div>
     </section>
 
-    <div id="jobs">
+    <section id="jobs">
       <p id="showing-line"><b>Showing:</b> 0 / <b>Total:</b> 0</p>
-
       <div id="list-wrapper" aria-label="채용 공고 리스트">
-        <div id="sentinel-top"></div>
         <div id="jobs-grid"></div>
-        <div id="sentinel-bottom"></div>
-    </div>
-  </div>
+      </div>
+    </section>
 
-  <!-- Modal Backdrop + Modal (초기 숨김) -->
+    <section id="installTip" class="tip" hidden>
+      On iPhone Safari: Share -> Add to Home Screen
+    </section>
+  </main>
+
+  <!-- ✅ Modal은 1개만 -->
   <div id="modalBackdrop" class="modal-backdrop" hidden></div>
 
   <aside id="jobModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
@@ -104,40 +108,6 @@
 
     <div class="modal-footer">
       <div class="bm-meta">
-        <label class="hint">태그 (쉼표로 구분)</label>
-        <input id="bmTagsInput" type="text" placeholder="예: 환경, 연구, 서울" />
-
-        <label class="hint">메모</label>
-        <textarea id="bmNote" rows="3" placeholder="메모를 입력하세요"></textarea>
-      </div>
-
-      <div class="modal-actions">
-        <button id="btnToggleBookmark" class="btn btn-primary" type="button">북마크 추가</button>
-        <button id="btnSaveBmMeta" class="btn" type="button">저장</button>
-        <button id="btnCopy" class="btn" type="button">링크 복사</button>
-        <button id="btnShare" class="btn btn-secondary" type="button">공유</button>
-      </div>
-    </div>
-  </aside>
-    </div>
-
-    <section id="installTip" class="tip" hidden>
-      On iPhone Safari: Share -> Add to Home Screen
-    </section>
-  </main>
-
-  <!-- ✅ Detail Modal -->
-  <div id="modalBackdrop" class="modal-backdrop" hidden></div>
-  <div id="jobModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
-    <div class="modal-header">
-      <h2 id="modalTitle">Job Detail</h2>
-      <button id="btnCloseModal" class="btn btn-ghost" type="button" aria-label="닫기">✕</button>
-    </div>
-
-    <div class="modal-body" id="modalBody"></div>
-
-    <div class="modal-footer">
-      <div class="bm-meta">
         <div class="field">
           <label for="bmTagsInput">태그 (쉼표로 구분)</label>
           <input id="bmTagsInput" type="text" placeholder="예: 지원,관심,보류" />
@@ -146,7 +116,7 @@
 
         <div class="field">
           <label for="bmNote">메모</label>
-          <textarea id="bmNote" rows="3" placeholder="예: 포트폴리오 맞는지 확인, 연봉 확인"></textarea>
+          <textarea id="bmNote" rows="3" placeholder="예: 연봉 확인, 포트폴리오 맞는지 확인"></textarea>
         </div>
       </div>
 
@@ -157,8 +127,6 @@
         <button id="btnSaveBmMeta" class="btn btn-secondary" type="button">태그/메모 저장</button>
       </div>
     </div>
-  </div>
-
-  
+  </aside>
 </body>
 </html>
