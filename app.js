@@ -35,6 +35,9 @@ let __currentQuery = "";
 let __renderStartIndex = 0;
 let __renderEndIndex = 0;
 
+// ✅ 중복 페이징 방지
+let __isPaging = false;
+
 // =====================
 // Utils
 // =====================
@@ -147,7 +150,7 @@ function renderWindow(reset = false) {
     if (wrapper) {
       const h = container.firstElementChild?.getBoundingClientRect().height ?? 0;
       container.removeChild(container.firstChild);
-      wrapper.scrollTop -= h; // ✅ 제거한 만큼 스크롤 보정
+      wrapper.scrollTop -= h;
     } else {
       container.removeChild(container.firstChild);
     }
@@ -160,7 +163,7 @@ function renderWindow(reset = false) {
     __renderEndIndex++;
   }
 
-  // ✅ Showing은 "실제 DOM" 기준 (60 유지면 60으로 보임)
+  // ✅ Showing은 "실제 DOM" 기준
   updateCount(container.children.length, total);
 }
 
@@ -189,16 +192,13 @@ function wireBookmarkClicks() {
 
     saveBookmarks(bookmarks);
 
-    // 북마크만 보기 상태에서 "해제"하면 리스트에서 사라져야 하니까 필터 재적용
     if (onlyBm && !bookmarks.has(key)) {
       applyFilters(true);
       return;
     }
 
-    // 일반 상태는 버튼만 즉시 반영
     btn.textContent = bookmarks.has(key) ? "★" : "☆";
 
-    // 상단 북마크 숫자만 갱신
     const line = document.getElementById("showing-line");
     if (line) {
       line.innerHTML = line.innerHTML.replace(
@@ -230,8 +230,8 @@ function applyFilters(resetPage = true) {
   const typeNeedle = (typeMap[typeEl?.value ?? "all"] ?? "").toLowerCase();
 
   let filtered = __allJobs.filter(job => {
-    // 검색
-    if (q && !JSON.stringify(job).toLowerCase().includes(q)) return false;
+    // ✅ 검색 (미리 만든 __searchText 사용)
+    if (q && !job.__searchText?.includes(q)) return false;
 
     // 지역
     if (regionNeedle) {
@@ -283,7 +283,12 @@ function applyFilters(resetPage = true) {
 
   if (resetPage) currentPage = 1;
 
-  // 필터 바꾸면 리스트 스크롤을 맨 위로
+  // ✅ 필터 변경 시 인덱스 리셋(안전)
+  if (resetPage) {
+    __renderStartIndex = 0;
+    __renderEndIndex = 0;
+  }
+
   if (wrapper && resetPage) wrapper.scrollTop = 0;
 
   renderWindow(true);
@@ -331,9 +336,12 @@ function wireInfiniteScroll() {
 
     if (!nearBottom) return;
     if (currentPage * PAGE_SIZE >= total) return;
+    if (__isPaging) return;
 
+    __isPaging = true;
     currentPage++;
     renderWindow(false);
+    __isPaging = false;
   }, { passive: true });
 }
 
@@ -351,7 +359,12 @@ async function loadJobs() {
     }
 
     const jobs = payload.data?.result || [];
-    __allJobs = jobs;
+
+    // ✅ 검색 성능 최적화: 미리 lower-case searchText 만들어둠
+    __allJobs = jobs.map(j => ({
+      ...j,
+      __searchText: JSON.stringify(j).toLowerCase()
+    }));
 
     wireBookmarkClicks();
     wireUI();
