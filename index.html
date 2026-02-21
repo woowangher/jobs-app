@@ -11,126 +11,123 @@
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="stylesheet" href="./styles.css" />
   <title>Job Board PWA</title>
-
-  <style>
-    .filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      align-items: flex-end;
-    }
-
-    .filters label {
-      display: flex;
-      flex-direction: column;
-      font-size: 14px;
-      gap: 6px;
-    }
-
-    .search-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      width: 100%;
-      margin-top: 8px;
-    }
-
-    .bookmark-only {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 14px;
-      white-space: nowrap;
-    }
-
-    .search-box {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-width: 260px;
-      flex: 1;
-    }
-
-    @media (max-width: 600px) {
-      .filters {
-        flex-direction: column;
-        align-items: stretch;
-      }
-    }
-  </style>
 </head>
 
 <body>
-  <main class="app">
+  <main class="app" id="app">
     <header class="top">
-      <h1>Recruit Openings</h1>
-      <p class="sub">Install to home screen on iPhone for app-like use.</p>
+      <div class="top-row">
+        <div>
+          <h1>Recruit Openings</h1>
+          <p class="sub">Install to home screen on iPhone for app-like use.</p>
+        </div>
+        <div class="top-actions">
+          <span id="newBadge" class="badge badge-new" hidden>NEW</span>
+          <button id="btnReset" class="btn btn-ghost" type="button">초기화</button>
+        </div>
+      </div>
+
+      <nav class="tabs" aria-label="Views">
+        <button class="tab is-active" id="tabAll" data-view="all" type="button">전체</button>
+        <button class="tab" id="tabBookmarks" data-view="bookmarks" type="button">북마크</button>
+      </nav>
     </header>
 
     <section class="filters" aria-label="Job filters">
-      
-      <label>
-        Region
-        <select id="regionFilter">
-          <option value="all">All</option>
-          <option value="seoul">Seoul</option>
-          <option value="gyeonggi">Gyeonggi</option>
-        </select>
-      </label>
-
-      <label>
-        Employment
-        <select id="typeFilter">
-          <option value="all">All</option>
-          <option value="regular">Regular</option>
-          <option value="intern">Intern</option>
-        </select>
-      </label>
-      
-      <label>
-        Sort
-        <select id="sortFilter">
-          <option value="default">Default</option>
-          <option value="deadline">Deadline (soonest)</option>
-          <option value="latest">Latest (newest)</option>
-        </select>
-      </label>
-
-      <!-- 🔥 여기부터 새 구조 -->
-      <div class="search-row">
-        <div class="bookmark-only">
-          <label>
-            <input type="checkbox" id="onlyBookmarked">
-            북마크만
-          </label>
+      <div class="filter-row">
+        <div class="field">
+          <label for="search">Search</label>
+          <input id="search" type="search" placeholder="title, company, keyword (ex: 개발 -인턴)" list="recentSearches" />
+          <datalist id="recentSearches"></datalist>
+          <div class="hint">팁: 공백으로 여러 키워드, 제외는 <code>-키워드</code> (예: <code>개발 -인턴</code>)</div>
         </div>
 
-        <div class="search-box">
-          <label for="search">Search</label>
-          <input id="search" type="search" placeholder="title, company, keyword" />
+        <div class="field">
+          <label for="sortFilter">Sort</label>
+          <select id="sortFilter">
+            <option value="default">Default</option>
+            <option value="deadline">Deadline (soonest)</option>
+            <option value="latest">Latest (newest)</option>
+          </select>
         </div>
       </div>
-      <!-- 🔥 여기까지 -->
 
+      <div class="filter-row">
+        <fieldset class="fieldset">
+          <legend>Region</legend>
+          <label class="chk"><input type="checkbox" name="region" value="서울">서울</label>
+          <label class="chk"><input type="checkbox" name="region" value="경기">경기</label>
+          <label class="chk"><input type="checkbox" name="region" value="인천">인천</label>
+          <label class="chk"><input type="checkbox" name="region" value="대전">대전</label>
+          <label class="chk"><input type="checkbox" name="region" value="부산">부산</label>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend>Employment</legend>
+          <label class="chk"><input type="checkbox" name="type" value="정규">정규</label>
+          <label class="chk"><input type="checkbox" name="type" value="인턴">인턴</label>
+          <label class="chk"><input type="checkbox" name="type" value="계약">계약</label>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend>Options</legend>
+          <label class="chk"><input type="checkbox" id="onlyOpen">마감된 공고 제외</label>
+          <label class="chk"><input type="checkbox" id="due7">마감 7일 이내</label>
+          <label class="chk"><input type="checkbox" id="onlyToday">오늘 시작(등록)만</label>
+        </fieldset>
+      </div>
+
+      <div class="chips-row" id="activeChips" aria-label="Active filters"></div>
     </section>
 
     <div id="jobs">
       <p id="showing-line"></p>
+
+      <!-- ✅ 내부 스크롤 영역 -->
       <div id="list-wrapper">
         <div id="sentinel-top"></div>
-        <div id="jobs-grid"></div>
+        <div id="jobs-grid" aria-live="polite"></div>
         <div id="sentinel-bottom"></div>
       </div>
     </div>
-    
+
     <section id="installTip" class="tip" hidden>
       On iPhone Safari: Share -> Add to Home Screen
     </section>
-
-    <section id="resultMeta" class="resultMeta" aria-live="polite"></section>
-    <section id="jobList" class="jobList" aria-live="polite"></section>
   </main>
+
+  <!-- ✅ Detail Modal -->
+  <div id="modalBackdrop" class="modal-backdrop" hidden></div>
+  <div id="jobModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+    <div class="modal-header">
+      <h2 id="modalTitle">Job Detail</h2>
+      <button id="btnCloseModal" class="btn btn-ghost" type="button" aria-label="닫기">✕</button>
+    </div>
+
+    <div class="modal-body" id="modalBody"></div>
+
+    <div class="modal-footer">
+      <div class="bm-meta">
+        <div class="field">
+          <label for="bmTagsInput">태그 (쉼표로 구분)</label>
+          <input id="bmTagsInput" type="text" placeholder="예: 지원,관심,보류" />
+          <div class="hint">예: <code>지원,관심</code></div>
+        </div>
+
+        <div class="field">
+          <label for="bmNote">메모</label>
+          <textarea id="bmNote" rows="3" placeholder="예: 포트폴리오 맞는지 확인, 연봉 확인"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnCopy" class="btn btn-ghost" type="button">링크 복사</button>
+        <button id="btnShare" class="btn btn-ghost" type="button">공유</button>
+        <button id="btnToggleBookmark" class="btn btn-primary" type="button">북마크</button>
+        <button id="btnSaveBmMeta" class="btn btn-secondary" type="button">태그/메모 저장</button>
+      </div>
+    </div>
+  </div>
 
   <script src="./app.js" defer></script>
 </body>
