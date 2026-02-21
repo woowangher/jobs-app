@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -11,38 +11,42 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
 
-  <link rel="stylesheet" href="./styles.css?v=stable_sw_1">
-  <script src="./app.js?v=stable_sw_1" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=appify_1">
+  <script src="./app.js?v=appify_1" defer></script>
   <title>Job Board PWA</title>
 </head>
 
 <body>
   <main class="app" id="app">
+    <!-- App Header (컴팩트) -->
     <header class="top">
       <div class="top-row">
-        <div>
+        <div class="top-title">
           <h1>Recruit Openings</h1>
-          <p class="sub">Install to home screen on iPhone for app-like use.</p>
+          <p class="sub">PWA Job Board</p>
         </div>
+
         <div class="top-actions">
           <span id="newBadge" class="badge badge-new" hidden>NEW</span>
-          <button id="btnReset" class="btn btn-ghost" type="button">초기화</button>
+          <button id="btnRefresh" class="btn btn-ghost btn-nowrap" type="button" title="새로고침" aria-label="새로고침">🔄</button>
+          <button id="btnReset" class="btn btn-ghost btn-nowrap" type="button">초기화</button>
         </div>
       </div>
 
-      <nav class="tabs" aria-label="Views">
-        <button class="tab is-active" id="tabAll" data-view="all" type="button">전체</button>
-        <button class="tab" id="tabBookmarks" data-view="bookmarks" type="button">북마크</button>
-      </nav>
+      <!-- Last updated -->
+      <div class="top-meta">
+        <span id="lastUpdated" class="meta">업데이트: -</span>
+      </div>
     </header>
 
+    <!-- Filters -->
     <section class="filters" aria-label="Job filters">
       <div class="filter-row">
         <div class="field">
           <label for="search">Search</label>
           <input id="search" type="search" placeholder="title, company, keyword (ex: 개발 -인턴)" list="recentSearches" autocomplete="off" />
           <datalist id="recentSearches"></datalist>
-          <div class="hint">팁: 공백으로 여러 키워드, 제외는 <code>-키워드</code> (예: <code>개발 -인턴</code>)</div>
+          <div class="hint">팁: 공백으로 여러 키워드, 제외는 <code>-키워드</code></div>
         </div>
 
         <div class="field" style="max-width:260px;">
@@ -56,7 +60,7 @@
 
         <div class="field field-tight">
           <label class="sr-only" for="btnToggleFilters">Filters</label>
-          <button id="btnToggleFilters" class="btn btn-ghost" type="button" aria-expanded="false">
+          <button id="btnToggleFilters" class="btn btn-ghost btn-nowrap" type="button" aria-expanded="false">
             필터 펼치기
           </button>
         </div>
@@ -90,25 +94,44 @@
       <div class="chips-row" id="activeChips" aria-label="Active filters"></div>
     </section>
 
-    <section id="jobs">
+    <!-- Jobs -->
+    <section id="jobs" aria-label="Jobs">
       <p id="showing-line"><b>Showing:</b> 0 / <b>Total:</b> 0</p>
       <div id="list-wrapper" aria-label="채용 공고 리스트">
         <div id="jobs-grid"></div>
       </div>
     </section>
-
-    <section id="installTip" class="tip" hidden>
-      On iPhone Safari: Share -> Add to Home Screen
-    </section>
   </main>
 
-  <!-- ✅ Modal은 1개만 -->
+  <!-- Bottom Tab Bar (완전앱 느낌) -->
+  <nav class="bottom-bar" aria-label="Bottom navigation">
+    <button id="tabAll" class="nav-item is-active" type="button" aria-label="전체">
+      <span class="nav-ico">📋</span>
+      <span class="nav-txt">전체</span>
+    </button>
+    <button id="tabBookmarks" class="nav-item" type="button" aria-label="북마크">
+      <span class="nav-ico">⭐</span>
+      <span class="nav-txt">북마크</span>
+    </button>
+  </nav>
+
+  <!-- Toast -->
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Update toast (SW update) -->
+  <div id="updateBanner" class="update-banner" hidden>
+    <span>새 버전이 있어요.</span>
+    <button id="btnUpdateNow" class="btn btn-primary btn-nowrap" type="button">업데이트</button>
+    <button id="btnUpdateDismiss" class="btn btn-ghost btn-nowrap" type="button">나중에</button>
+  </div>
+
+  <!-- Modal -->
   <div id="modalBackdrop" class="modal-backdrop" hidden></div>
 
   <aside id="jobModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-header">
       <h2 id="modalTitle">상세</h2>
-      <button id="btnCloseModal" class="btn btn-ghost" type="button" aria-label="닫기">✕</button>
+      <button id="btnCloseModal" class="btn btn-ghost btn-nowrap" type="button" aria-label="닫기">✕</button>
     </div>
 
     <div id="modalBody" class="modal-body"></div>
@@ -128,10 +151,10 @@
       </div>
 
       <div class="modal-actions">
-        <button id="btnCopy" class="btn btn-ghost" type="button">링크 복사</button>
-        <button id="btnShare" class="btn btn-ghost" type="button">공유</button>
-        <button id="btnToggleBookmark" class="btn btn-primary" type="button">북마크</button>
-        <button id="btnSaveBmMeta" class="btn btn-secondary" type="button">태그/메모 저장</button>
+        <button id="btnCopy" class="btn btn-ghost btn-nowrap" type="button">링크 복사</button>
+        <button id="btnShare" class="btn btn-ghost btn-nowrap" type="button">공유</button>
+        <button id="btnToggleBookmark" class="btn btn-primary btn-nowrap" type="button">북마크</button>
+        <button id="btnSaveBmMeta" class="btn btn-secondary btn-nowrap" type="button">저장</button>
       </div>
     </div>
   </aside>

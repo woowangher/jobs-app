@@ -1,28 +1,27 @@
 ﻿const API_URL = "/api/jobs";
 
-const BOOKMARK_KEY = "jobs-app:bookmarks:v3";
-const UI_STATE_KEY = "jobs-app:ui-state:v3";
+const BOOKMARK_KEY = "jobs-app:bookmarks:v4";
+const UI_STATE_KEY = "jobs-app:ui-state:v4";
 const RECENT_SEARCH_KEY = "jobs-app:recent-searches:v1";
-const SNAPSHOT_KEY = "jobs-app:last-snapshot:v2";
+const SNAPSHOT_KEY = "jobs-app:last-snapshot:v3";
 
 let jobsAll = [];
 let jobsView = [];
 let viewMode = "all"; // all | bookmarks
 let modalJob = null;
-
 let bookmarks = loadBookmarks();
 
+let swReg = null;
+let swUpdateReady = false;
+
 // ------------------ storage helpers ------------------
-function safeJsonParse(raw, fallback) {
-  try { return JSON.parse(raw); } catch { return fallback; }
-}
+function safeJsonParse(raw, fallback) { try { return JSON.parse(raw); } catch { return fallback; } }
 function loadBookmarks() {
   const obj = safeJsonParse(localStorage.getItem(BOOKMARK_KEY) || "{}", {});
   return obj && typeof obj === "object" ? obj : {};
 }
-function saveBookmarks(obj) {
-  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(obj));
-}
+function saveBookmarks(obj) { localStorage.setItem(BOOKMARK_KEY, JSON.stringify(obj)); }
+
 function loadRecentSearches() {
   const arr = safeJsonParse(localStorage.getItem(RECENT_SEARCH_KEY) || "[]", []);
   return Array.isArray(arr) ? arr.slice(0, 10) : [];
@@ -62,7 +61,6 @@ function parseYmd(v) {
   const d = Number(digits.slice(6, 8));
   return new Date(y, m - 1, d).getTime();
 }
-
 function formatYmd(v) {
   const t = parseYmd(v);
   if (t == null) return "";
@@ -72,7 +70,6 @@ function formatYmd(v) {
   const d = String(dt.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
-
 function daysUntil(ymd) {
   const t = parseYmd(ymd);
   if (t == null) return null;
@@ -116,6 +113,45 @@ function dedupeJobs(list) {
   return Array.from(map.values());
 }
 
+function setLastUpdated(ts = Date.now()) {
+  const el = document.getElementById("lastUpdated");
+  if (!el) return;
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  el.textContent = `업데이트: ${hh}:${mm}`;
+}
+
+// ------------------ toast ------------------
+function toast(message, { actionText = null, onAction = null, duration = 2200 } = {}) {
+  const host = document.getElementById("toastHost");
+  if (!host) return;
+
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `<span>${escapeHtml(message)}</span>`;
+
+  let timer = null;
+
+  if (actionText && typeof onAction === "function") {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = actionText;
+    btn.addEventListener("click", () => {
+      clearTimeout(timer);
+      el.remove();
+      onAction();
+    });
+    el.appendChild(btn);
+  }
+
+  host.appendChild(el);
+
+  timer = setTimeout(() => {
+    el.remove();
+  }, duration);
+}
+
 // ------------------ UI helpers ------------------
 function renderRecentSearches() {
   const el = document.getElementById("recentSearches");
@@ -128,10 +164,8 @@ function setView(v) {
   viewMode = v;
   const tabAll = document.getElementById("tabAll");
   const tabBm = document.getElementById("tabBookmarks");
-  if (tabAll && tabBm) {
-    tabAll.classList.toggle("is-active", v === "all");
-    tabBm.classList.toggle("is-active", v === "bookmarks");
-  }
+  tabAll?.classList.toggle("is-active", v === "all");
+  tabBm?.classList.toggle("is-active", v === "bookmarks");
 }
 
 function getUiSnapshot() {
@@ -167,11 +201,9 @@ function renderActiveChips(state) {
   if (state.q) items.push({ label: `검색: ${state.q}`, clear: () => setSearch("") });
   for (const r of state.regions) items.push({ label: `지역: ${r}`, clear: () => setCheckbox("region", r, false) });
   for (const t of state.types) items.push({ label: `고용: ${t}`, clear: () => setCheckbox("type", t, false) });
-
   if (state.onlyOpen) items.push({ label: "마감 제외", clear: () => (document.getElementById("onlyOpen").checked = false) });
   if (state.due7) items.push({ label: "7일 이내", clear: () => (document.getElementById("due7").checked = false) });
   if (state.onlyToday) items.push({ label: "오늘만", clear: () => (document.getElementById("onlyToday").checked = false) });
-
   if (state.view === "bookmarks") items.push({ label: "북마크 보기", clear: () => setView("all") });
 
   chips.innerHTML = items.map((it, idx) => `
@@ -269,12 +301,10 @@ function showSkeleton(n = 6) {
 function renderList(list, q) {
   const grid = document.getElementById("jobs-grid");
   if (!grid) return;
-
   const frag = document.createDocumentFragment();
   for (const job of list) frag.appendChild(makeCard(job, q));
   grid.innerHTML = "";
   grid.appendChild(frag);
-
   updateCount(list.length, list.length);
 }
 
@@ -368,6 +398,7 @@ function applyFiltersAndRender() {
   }
 
   jobsView = list;
+
   renderActiveChips(state);
   renderRecentSearches();
   renderList(jobsView, state.q);
@@ -377,10 +408,15 @@ function applyFiltersAndRender() {
 // ------------------ bookmarks ------------------
 function toggleBookmark(job) {
   const key = getJobKey(job);
-  if (bookmarks[key]) delete bookmarks[key];
+  const existed = !!bookmarks[key];
+
+  if (existed) delete bookmarks[key];
   else bookmarks[key] = { savedAt: Date.now(), tags: [], note: "" };
+
   saveBookmarks(bookmarks);
   applyFiltersAndRender();
+
+  toast(existed ? "북마크 해제됨" : "북마크 추가됨");
   if (modalJob && getJobKey(modalJob) === key) openModal(modalJob);
 }
 
@@ -391,6 +427,7 @@ function saveBookmarkMeta(job, tags, note) {
   bookmarks[key].note = note;
   saveBookmarks(bookmarks);
   applyFiltersAndRender();
+  toast("저장됨 ✅");
   if (modalJob && getJobKey(modalJob) === key) openModal(modalJob);
 }
 
@@ -402,7 +439,6 @@ function openModal(job) {
   const modal = document.getElementById("jobModal");
   const body = document.getElementById("modalBody");
   const titleEl = document.getElementById("modalTitle");
-
   if (!backdrop || !modal || !body || !titleEl) return;
 
   const key = getJobKey(job);
@@ -509,8 +545,21 @@ function updateNewBadge(list) {
 
   const prevSet = new Set(prev.keys);
   const newCount = keys.slice(0, 200).filter(k => !prevSet.has(k)).length;
+
   badge.hidden = newCount === 0;
   if (!badge.hidden) badge.textContent = `NEW ${newCount}`;
+}
+
+// ------------------ SW update banner ------------------
+function showUpdateBanner() {
+  const banner = document.getElementById("updateBanner");
+  if (!banner) return;
+  banner.hidden = false;
+}
+function hideUpdateBanner() {
+  const banner = document.getElementById("updateBanner");
+  if (!banner) return;
+  banner.hidden = true;
 }
 
 // ------------------ Service Worker (사용) ------------------
@@ -518,25 +567,29 @@ async function registerSW() {
   if (!("serviceWorker" in navigator)) return;
 
   try {
-    const reg = await navigator.serviceWorker.register("./sw.js");
-    // 새 SW가 waiting이면 바로 활성화 요청
-    if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    swReg = await navigator.serviceWorker.register("./sw.js");
 
-    reg.addEventListener("updatefound", () => {
-      const sw = reg.installing;
+    // 업데이트 체크(브라우저에 따라 필요)
+    swReg.update?.();
+
+    // 이미 waiting 있으면 즉시 배너
+    if (swReg.waiting) {
+      swUpdateReady = true;
+      showUpdateBanner();
+    }
+
+    swReg.addEventListener("updatefound", () => {
+      const sw = swReg.installing;
       if (!sw) return;
       sw.addEventListener("statechange", () => {
-        // 새 SW 설치 완료 → 다음 로드부터 적용
         if (sw.state === "installed" && navigator.serviceWorker.controller) {
-          console.log("[SW] Update ready");
-          // 필요하면 여기서 "새 버전 있음" 배지/토스트 띄우면 됨
+          swUpdateReady = true;
+          showUpdateBanner();
         }
       });
     });
 
-    // 컨트롤러 변경되면 새로고침(파일 세트 맞추기)
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      console.log("[SW] controller changed -> reload");
       window.location.reload();
     });
   } catch (e) {
@@ -544,13 +597,25 @@ async function registerSW() {
   }
 }
 
-// ------------------ events ------------------
-function wireUI() {
-  // tabs
-  document.getElementById("tabAll")?.addEventListener("click", () => { setView("all"); applyFiltersAndRender(); });
-  document.getElementById("tabBookmarks")?.addEventListener("click", () => { setView("bookmarks"); applyFiltersAndRender(); });
+// ------------------ fetch jobs ------------------
+async function loadJobs({ silent = false } = {}) {
+  if (!silent) showSkeleton(6);
 
-  // ✅ Filter toggle (PC/모바일 공통)
+  const res = await fetch(API_URL, { cache: "no-store" });
+  const payload = await res.json();
+  if (!payload?.ok) throw new Error("API ok:false");
+
+  const raw = payload?.data?.result ?? [];
+  const jobs = dedupeJobs(Array.isArray(raw) ? raw : []);
+
+  jobsAll = jobs.map(j => ({ ...j, __searchText: JSON.stringify(j).toLowerCase() }));
+  updateNewBadge(jobsAll);
+  setLastUpdated(Date.now());
+}
+
+// ------------------ wire UI ------------------
+function wireUI() {
+  // ✅ Filter toggle (PC/모바일 공통, 기본: 모바일 닫힘)
   const btnToggleFilters = document.getElementById("btnToggleFilters");
   const filtersSection = document.querySelector(".filters");
 
@@ -561,7 +626,6 @@ function wireUI() {
     btnToggleFilters.textContent = open ? "필터 접기" : "필터 펼치기";
   }
 
-  // ✅ 기본값: PC는 열림, 모바일은 닫힘
   function syncFiltersDefault() {
     const isMobile = window.matchMedia("(max-width: 700px)").matches;
     setFiltersOpen(!isMobile);
@@ -577,27 +641,24 @@ function wireUI() {
     syncFiltersDefault.__t = setTimeout(syncFiltersDefault, 120);
   });
 
-  // 최초 1회 적용
   syncFiltersDefault();
 
-  // ✅ Reset (document click delegation - capture)
+  // bottom tabs
+  document.getElementById("tabAll")?.addEventListener("click", () => { setView("all"); applyFiltersAndRender(); });
+  document.getElementById("tabBookmarks")?.addEventListener("click", () => { setView("bookmarks"); applyFiltersAndRender(); });
+
+  // ✅ Reset (capture delegation)
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("#btnReset");
     if (!btn) return;
-
     e.preventDefault();
 
     try {
-      console.log("[UI] reset clicked");
-
       localStorage.removeItem(UI_STATE_KEY);
       setView("all");
 
       const search = document.getElementById("search");
-      if (search) {
-       search.value = "";
-        search.blur();
-      }
+      if (search) { search.value = ""; search.blur(); }
 
       const sort = document.getElementById("sortFilter");
       if (sort) sort.value = "default";
@@ -617,13 +678,26 @@ function wireUI() {
       if (wrapper) wrapper.scrollTop = 0;
 
       applyFiltersAndRender();
+      toast("초기화 완료 ✅");
     } catch (err) {
-     console.error("[UI] reset failed:", err);
-      alert("초기화 중 오류가 발생했어요. 콘솔을 확인해줘!");
+      console.error("[UI] reset failed:", err);
+      toast("초기화 실패");
     }
   }, true);
 
-  // filters
+  // refresh button
+  document.getElementById("btnRefresh")?.addEventListener("click", async () => {
+    try {
+      await loadJobs({ silent: true });
+      applyFiltersAndRender();
+      toast("업데이트 완료 ✅");
+    } catch (e) {
+      console.error(e);
+      toast("업데이트 실패");
+    }
+  });
+
+  // filters (debounce)
   let debounce = null;
   const search = document.getElementById("search");
   if (search) {
@@ -641,7 +715,7 @@ function wireUI() {
   document.getElementById("due7")?.addEventListener("change", () => applyFiltersAndRender());
   document.getElementById("onlyToday")?.addEventListener("change", () => applyFiltersAndRender());
 
-  // cards (위임 1개)
+  // cards (event delegation 1개)
   const grid = document.getElementById("jobs-grid");
   grid?.addEventListener("click", (e) => {
     const bmBtn = e.target.closest('button[data-action="toggle-bookmark"]');
@@ -671,10 +745,7 @@ function wireUI() {
   });
 
   // modal close
-  document.getElementById("btnCloseModal")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeModal();
-  });
+  document.getElementById("btnCloseModal")?.addEventListener("click", (e) => { e.preventDefault(); closeModal(); });
   document.getElementById("modalBackdrop")?.addEventListener("click", () => closeModal());
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
@@ -695,9 +766,13 @@ function wireUI() {
   document.getElementById("btnCopy")?.addEventListener("click", async () => {
     if (!modalJob) return;
     const url = modalJob.srcUrl || "";
-    if (!url) return alert("복사할 링크가 없어요.");
-    try { await navigator.clipboard.writeText(url); alert("링크 복사 완료!"); }
-    catch { prompt("복사:", url); }
+    if (!url) return toast("복사할 링크가 없어요.");
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("링크 복사됨 ✅");
+    } catch {
+      toast("복사 실패");
+    }
   });
 
   document.getElementById("btnShare")?.addEventListener("click", async () => {
@@ -706,8 +781,23 @@ function wireUI() {
     const url = modalJob.srcUrl || "";
     try {
       if (navigator.share) await navigator.share({ title, text: title, url });
-      else alert("공유 API 미지원: 링크 복사로 대체해줘.");
+      else toast("공유 미지원: 복사로 해줘");
     } catch {}
+  });
+
+  // update banner buttons
+  document.getElementById("btnUpdateNow")?.addEventListener("click", () => {
+    if (!swReg) return;
+    const waiting = swReg.waiting;
+    if (waiting) {
+      waiting.postMessage({ type: "SKIP_WAITING" });
+      toast("업데이트 적용 중...", { duration: 1600 });
+    }
+  });
+
+  document.getElementById("btnUpdateDismiss")?.addEventListener("click", () => {
+    hideUpdateBanner();
+    toast("나중에 업데이트", { duration: 1400 });
   });
 
   // scroll state
@@ -721,33 +811,20 @@ function wireUI() {
   closeModal();
 }
 
-// ------------------ load jobs ------------------
-async function loadJobs() {
-  showSkeleton(6);
-
-  const res = await fetch(API_URL, { cache: "no-store" });
-  const payload = await res.json();
-
-  if (!payload?.ok) throw new Error("API ok:false");
-
-  const raw = payload?.data?.result ?? [];
-  const jobs = dedupeJobs(Array.isArray(raw) ? raw : []);
-
-  jobsAll = jobs.map(j => ({ ...j, __searchText: JSON.stringify(j).toLowerCase() }));
-  updateNewBadge(jobsAll);
-}
-
 // ------------------ boot ------------------
 (async function boot() {
   try {
     renderRecentSearches();
     wireUI();
-    await registerSW();   // ✅ SW 사용
+    await registerSW();
 
-    await loadJobs();
+    await loadJobs({ silent: false });
 
     const restored = restoreUiState();
     if (!restored) applyFiltersAndRender();
+
+    setLastUpdated(Date.now());
+    toast("앱 준비 완료 ✅", { duration: 1200 });
   } catch (err) {
     console.error(err);
     document.body.innerHTML = "<h2>JS ERROR 발생</h2><p>콘솔을 확인해줘.</p>";

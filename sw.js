@@ -1,18 +1,17 @@
-﻿// sw.js (stable)
-// Strategy:
-// - SAME ORIGIN only (avoid chrome-extension, 3p)
-// - /api/* : network only (never cache)
-// - HTML navigate: network-first, fallback cache
-// - Assets: cache-first + background update
+﻿// sw.js (appify_1)
+// SAME ORIGIN only
+// /api/* : network only
+// HTML navigate: network-first, fallback cache
+// Assets: cache-first + background update
 
-const VERSION = "stable_sw_1";
+const VERSION = "appify_1";
 const CACHE = `jobs-app-${VERSION}`;
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=stable_sw_1",
-  "./app.js?v=stable_sw_1",
+  "./styles.css?v=appify_1",
+  "./app.js?v=appify_1",
 ];
 
 self.addEventListener("install", (event) => {
@@ -36,16 +35,14 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-
-  // Only handle GET
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
 
-  // ✅ SAME ORIGIN only (핵심: chrome-extension 에러 방지)
+  // SAME ORIGIN only (chrome-extension 에러 방지)
   if (url.origin !== self.location.origin) return;
 
-  // ✅ API never cache
+  // API never cache
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(fetch(req));
     return;
@@ -55,7 +52,6 @@ self.addEventListener("fetch", (event) => {
   const isHTML = req.mode === "navigate" || accept.includes("text/html");
 
   if (isHTML) {
-    // network-first for HTML
     event.respondWith((async () => {
       try {
         const fresh = await fetch(req);
@@ -70,11 +66,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // assets: cache-first + update
   event.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) {
-      // background update
       event.waitUntil((async () => {
         try {
           const fresh = await fetch(req);
@@ -91,7 +85,6 @@ self.addEventListener("fetch", (event) => {
       cache.put(req, fresh.clone());
       return fresh;
     } catch {
-      // as a last resort
       return cached;
     }
   })());
