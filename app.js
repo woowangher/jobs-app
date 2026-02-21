@@ -23,12 +23,19 @@ let bookmarks = loadBookmarks();
 let __allJobs = [];
 
 // =====================
-// Infinite Scroll State
+// Virtualized Scroll State
 // =====================
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 20;             // 한 번에 더하는 단위
+const WINDOW_PAGES = 3;           // 화면에 유지할 페이지 수 (3페이지=60개)
+const EST_CARD_HEIGHT = 150;      // 카드 대략 높이(px) - UI 바꾸면 조정
 let currentPage = 1;
+
 let __currentFiltered = [];
 let __currentQuery = "";
+
+// DOM 윈도우 관리
+let __renderStartIndex = 0;       // 현재 DOM에 남겨진 시작 인덱스
+let __renderEndIndex = 0;         // 현재 DOM에 남겨진 끝 인덱스(미포함)
 
 // =====================
 // Utils
@@ -77,52 +84,108 @@ function updateCount(showing, total) {
 }
 
 // =====================
-// Render (append mode)
+// Card HTML builder
 // =====================
-function renderJobsAppend(jobs, q, totalFiltered) {
+function makeCard(job, q) {
+  const card = document.createElement("div");
+  card.className = "job-card"; // (styles.css에서 손대기 쉬움)
+  card.style.border = "1px solid #ccc";
+  card.style.padding = "10px";
+  card.style.margin = "10px 0";
+
+  const title = job.recrutPbancTtl || "제목 없음";
+  const company = job.instNm || "";
+  const url = job.srcUrl || "";
+  const region = Array.isArray(job.workRgnNmLst) ? job.workRgnNmLst.join(", ") : (job.workRgnNmLst || "");
+  const hireType = Array.isArray(job.hireTypeNmLst) ? job.hireTypeNmLst.join(", ") : (job.hireTypeNmLst || "");
+  const recruitType = job.recrutSeNm || "";
+  const period = `${job.pbancBgngYmd || ""} ~ ${job.pbancEndYmd || ""}`.trim();
+
+  const key = getJobKey(job);
+  const star = bookmarks.has(key) ? "★" : "☆";
+
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <h3 style="margin:0;">${highlight(title, q)}</h3>
+      <button class="bm-btn" data-bm="${key}" style="border:0;background:none;font-size:18px;cursor:pointer;">${star}</button>
+    </div>
+    <p style="margin:6px 0 0 0;"><b>${highlight(company, q)}</b></p>
+    <p style="margin:6px 0 0 0;color:#666;">${highlight(region, q)}</p>
+    <p style="margin:6px 0 0 0;color:#666;">${highlight(recruitType, q)}${hireType ? " · " + highlight(hireType, q) : ""}</p>
+    <p style="margin:6px 0 0 0;color:#666;">${highlight(period, q)}</p>
+    ${url ? `<p style="margin:8px 0 0 0;"><a href="${url}" target="_blank" rel="noopener noreferrer">공고 링크</a></p>` : ""}
+  `;
+
+  return card;
+}
+
+// =====================
+// Virtualized Render (keep only WINDOW_PAGES * PAGE_SIZE cards)
+// =====================
+function renderWindow(reset = false) {
   const container = document.getElementById("jobs-grid");
   if (!container) return;
 
-  // page 1이면 초기화
-  if (currentPage === 1) container.innerHTML = "";
+  // 스페이서가 없으면 만들기
+  let topSpacer = document.getElementById("top-spacer");
+  let bottomSpacer = document.getElementById("bottom-spacer");
+  if (!topSpacer) {
+    topSpacer = document.createElement("div");
+    topSpacer.id = "top-spacer";
+    container.parentNode.insertBefore(topSpacer, container);
+  }
+  if (!bottomSpacer) {
+    bottomSpacer = document.createElement("div");
+    bottomSpacer.id = "bottom-spacer";
+    container.parentNode.insertBefore(bottomSpacer, container.nextSibling);
+  }
 
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const paged = jobs.slice(start, start + PAGE_SIZE);
+  const total = __currentFiltered.length;
+  const loadedCount = Math.min(currentPage * PAGE_SIZE, total);
 
-  paged.forEach(job => {
-    const card = document.createElement("div");
-    card.style.border = "1px solid #ccc";
-    card.style.padding = "10px";
-    card.style.margin = "10px 0";
+  // 이번에 보여줄 "윈도우" 범위 계산
+  const windowSize = PAGE_SIZE * WINDOW_PAGES; // 60
+  const end = loadedCount;                     // 지금까지 로드된 끝
+  const start = Math.max(0, end - windowSize); // 끝에서 windowSize만 남김
 
-    const title = job.recrutPbancTtl || "제목 없음";
-    const company = job.instNm || "";
-    const url = job.srcUrl || "";
-    const region = Array.isArray(job.workRgnNmLst) ? job.workRgnNmLst.join(", ") : (job.workRgnNmLst || "");
-    const hireType = Array.isArray(job.hireTypeNmLst) ? job.hireTypeNmLst.join(", ") : (job.hireTypeNmLst || "");
-    const recruitType = job.recrutSeNm || "";
-    const period = `${job.pbancBgngYmd || ""} ~ ${job.pbancEndYmd || ""}`.trim();
+  // reset이면 완전 초기화
+  if (reset) {
+    container.innerHTML = "";
+    __renderStartIndex = start;
+    __renderEndIndex = start;
+  }
 
-    const key = getJobKey(job);
-    const star = bookmarks.has(key) ? "★" : "☆";
+  // 스페이서 높이: 앞에 버린 만큼 + 뒤에 남은 만큼
+  topSpacer.style.height = `${start * EST_CARD_HEIGHT}px`;
+  bottomSpacer.style.height = `${Math.max(0, total - end) * EST_CARD_HEIGHT}px`;
 
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <h3 style="margin:0;">${highlight(title, q)}</h3>
-        <button class="bm-btn" data-bm="${key}" style="border:0;background:none;font-size:18px;cursor:pointer;">${star}</button>
-      </div>
-      <p style="margin:6px 0 0 0;"><b>${highlight(company, q)}</b></p>
-      <p style="margin:6px 0 0 0;color:#666;">${highlight(region, q)}</p>
-      <p style="margin:6px 0 0 0;color:#666;">${highlight(recruitType, q)}${hireType ? " · " + highlight(hireType, q) : ""}</p>
-      <p style="margin:6px 0 0 0;color:#666;">${highlight(period, q)}</p>
-      ${url ? `<p style="margin:8px 0 0 0;"><a href="${url}" target="_blank" rel="noopener noreferrer">공고 링크</a></p>` : ""}
-    `;
+  // 컨테이너에 남길 범위로 업데이트
+  // (현재 DOM 범위: __renderStartIndex ~ __renderEndIndex)
+  // 목표 범위: start ~ end
 
-    container.appendChild(card);
-  });
+  // 1) 앞쪽이 더 크면(즉 start가 앞으로 당겨지면) -> 전체 리렌더가 더 안전
+  // (검색/정렬 변경 때)
+  if (start < __renderStartIndex) {
+    container.innerHTML = "";
+    __renderStartIndex = start;
+    __renderEndIndex = start;
+  }
 
-  const showing = Math.min(currentPage * PAGE_SIZE, totalFiltered);
-  updateCount(showing, totalFiltered);
+  // 2) 필요 없는 앞쪽 제거
+  while (__renderStartIndex < start && container.firstChild) {
+    container.removeChild(container.firstChild);
+    __renderStartIndex++;
+  }
+
+  // 3) 뒤쪽 추가
+  for (let i = __renderEndIndex; i < end; i++) {
+    const job = __currentFiltered[i];
+    container.appendChild(makeCard(job, __currentQuery));
+    __renderEndIndex++;
+  }
+
+  // 카운트 업데이트(Showing=로드된 개수 / Total=필터된 전체)
+  updateCount(loadedCount, total);
 }
 
 // =====================
@@ -160,7 +223,7 @@ function wireBookmarkClicks() {
 }
 
 // =====================
-// Filtering + Sorting (single source of truth)
+// Filtering + Sorting
 // =====================
 function applyFilters(resetPage = true) {
   const input = document.getElementById("search");
@@ -234,11 +297,12 @@ function applyFilters(resetPage = true) {
 
   if (resetPage) currentPage = 1;
 
-  renderJobsAppend(__currentFiltered, __currentQuery, __currentFiltered.length);
+  // 가상 스크롤 윈도우 렌더 (reset이면 DOM 초기화)
+  renderWindow(true);
 }
 
 // =====================
-// Wire UI Events
+// Wire UI
 // =====================
 function wireUI() {
   const input = document.getElementById("search");
@@ -264,10 +328,9 @@ function wireUI() {
 }
 
 // =====================
-// Infinite Scroll Listener
+// Infinite Scroll + Virtualization trigger
 // =====================
-function wireInfiniteScroll() {
-  // 너무 자주 실행 방지
+function wireVirtualScroll() {
   let ticking = false;
 
   window.addEventListener("scroll", () => {
@@ -277,18 +340,21 @@ function wireInfiniteScroll() {
     requestAnimationFrame(() => {
       ticking = false;
 
-      if (!__currentFiltered || __currentFiltered.length === 0) return;
+      const total = __currentFiltered.length;
+      if (!total) return;
 
       const nearBottom =
-        window.innerHeight + window.scrollY >= document.body.offsetHeight - 250;
+        window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
 
       if (!nearBottom) return;
 
-      const canLoadMore = currentPage * PAGE_SIZE < __currentFiltered.length;
+      const canLoadMore = currentPage * PAGE_SIZE < total;
       if (!canLoadMore) return;
 
       currentPage += 1;
-      renderJobsAppend(__currentFiltered, __currentQuery, __currentFiltered.length);
+
+      // 윈도우 유지하면서 뒤쪽 추가/앞쪽 제거
+      renderWindow(false);
     });
   });
 }
@@ -306,10 +372,7 @@ async function loadJobs() {
       return;
     }
 
-    // 공공데이터 json 구조: payload.data
     const jobs = payload.data?.result || [];
-    const total = payload.data?.totalCount ?? jobs.length;
-
     const root = document.getElementById("jobs");
     if (!root) return;
 
@@ -322,13 +385,9 @@ async function loadJobs() {
 
     wireBookmarkClicks();
     wireUI();
-    wireInfiniteScroll();
+    wireVirtualScroll();
 
-    // 초기 1회
     applyFilters(true);
-
-    // Total 표시 보정 (처음에 showing만 뜰 수 있어서)
-    updateCount(Math.min(PAGE_SIZE, total), total);
 
   } catch (err) {
     console.error(err);
