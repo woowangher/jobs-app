@@ -978,6 +978,8 @@ function wireUI() {
     window.clearTimeout(wireUI.__st);
     wireUI.__st = window.setTimeout(() => saveUiState(), 150);
   }, { passive: true });
+  
+  closeModal();
 }
 
 // =====================

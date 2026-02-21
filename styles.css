@@ -371,3 +371,18 @@ textarea:focus-visible,
   display: none !important;
   pointer-events: none !important;
 }
+
+/* ===== Force hide modal even if .modal sets display:flex ===== */
+[hidden] { display: none !important; }
+
+#jobModal[hidden],
+#modalBackdrop[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+#jobModal.hidden,
+#modalBackdrop.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
