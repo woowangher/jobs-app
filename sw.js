@@ -1,31 +1,25 @@
-﻿const CACHE_NAME = "jobs-app-shell-v1";
-const API_CACHE = "jobs-app-api-v1";
-
-const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./manifest.json",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png"
-];
+﻿// sw.js (safe network-first for HTML, no-cache for API)
+const CACHE = "jobs-app-static-v20260221_1";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(APP_SHELL);
-    self.skipWaiting();
-  })());
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE).then((cache) =>
+      cache.addAll([
+        "./",
+        "./index.html",
+        "./styles.css?v=20260221_1",
+        "./app.js?v=20260221_1",
+      ]).catch(() => {})
+    )
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.map(k => {
-      if (k !== CACHE_NAME && k !== API_CACHE) return caches.delete(k);
-    }));
-    self.clients.claim();
+    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+    await self.clients.claim();
   })());
 });
 
@@ -33,36 +27,40 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // same-origin only
-  if (url.origin !== self.location.origin) return;
+  // ✅ API는 절대 캐시하지 말기
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(fetch(req));
+    return;
+  }
 
-  // API: stale-while-revalidate-ish
-  if (url.pathname === "/api/jobs") {
+  // ✅ HTML은 네트워크 우선 (최신 index 받기)
+  const isHTML =
+    req.mode === "navigate" ||
+    (req.headers.get("accept") || "").includes("text/html");
+
+  if (isHTML) {
     event.respondWith((async () => {
-      const cache = await caches.open(API_CACHE);
-      const cached = await cache.match(req);
-
-      const fetchPromise = fetch(req).then(async (res) => {
-        if (res && res.ok) cache.put(req, res.clone());
-        return res;
-      }).catch(() => null);
-
-      return cached || (await fetchPromise) || new Response(JSON.stringify({ ok:false }), {
-        headers: { "Content-Type": "application/json" }
-      });
+      try {
+        const fresh = await fetch(req);
+        const cache = await caches.open(CACHE);
+        cache.put(req, fresh.clone());
+        return fresh;
+      } catch {
+        const cached = await caches.match(req);
+        return cached || caches.match("./index.html");
+      }
     })());
     return;
   }
 
-  // App shell: cache-first
+  // ✅ 나머지 정적 파일은 cache-first
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(req);
+    const cached = await caches.match(req);
     if (cached) return cached;
 
-    const res = await fetch(req);
-    // optional: cache GETs
-    if (req.method === "GET" && res && res.ok) cache.put(req, res.clone());
-    return res;
+    const fresh = await fetch(req);
+    const cache = await caches.open(CACHE);
+    cache.put(req, fresh.clone());
+    return fresh;
   })());
 });
