@@ -23,19 +23,21 @@ let bookmarks = loadBookmarks();
 let __allJobs = [];
 
 // =====================
-// Infinite Scroll State
+// Windowed Paging State
 // =====================
 const PAGE_SIZE = 20;
-const WINDOW_PAGES = 3; // 최대 60개 유지
-let currentPage = 1;
+const WINDOW_PAGES = 3; // 60개
+const WINDOW_SIZE = PAGE_SIZE * WINDOW_PAGES;
 
 let __currentFiltered = [];
 let __currentQuery = "";
 
-let __renderStartIndex = 0;
-let __renderEndIndex = 0;
+// 현재 화면에 렌더링된 윈도우 [start, end)
+let __windowStart = 0;
+let __windowEnd = 0;
 
-// ✅ 중복 페이징 방지
+// IO + 중복 방지
+let __io = null;
 let __isPaging = false;
 
 // =====================
@@ -84,15 +86,22 @@ function updateCount(showing, total) {
     ` <span style="margin-left:10px;color:#666;">북마크: <b>${bookmarks.size}</b></span>`;
 }
 
+function outerHeight(el) {
+  if (!el) return 0;
+  const rect = el.getBoundingClientRect();
+  const cs = window.getComputedStyle(el);
+  const mt = parseFloat(cs.marginTop) || 0;
+  const mb = parseFloat(cs.marginBottom) || 0;
+  return rect.height + mt + mb;
+}
+
 // =====================
-// Card Builder
+// Card Builder (A11y 강화)
 // =====================
 function makeCard(job, q) {
   const card = document.createElement("div");
-  card.style.border = "1px solid #ccc";
-  card.style.padding = "12px";
-  card.style.margin = "10px 0";
-  card.style.borderRadius = "8px";
+  card.className = "job-card";
+  card.setAttribute("role", "article");
 
   const title = job.recrutPbancTtl || "제목 없음";
   const company = job.instNm || "";
@@ -103,14 +112,21 @@ function makeCard(job, q) {
   const period = `${job.pbancBgngYmd || ""} ~ ${job.pbancEndYmd || ""}`.trim();
 
   const key = getJobKey(job);
-  const star = bookmarks.has(key) ? "★" : "☆";
+  const isBm = bookmarks.has(key);
+  const star = isBm ? "★" : "☆";
+  const aria = isBm ? "북마크 해제" : "북마크 추가";
 
   card.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <h3 style="margin:0;">${highlight(title, q)}</h3>
-      <button class="bm-btn" data-bm="${key}" style="border:0;background:none;font-size:18px;cursor:pointer;">
-        ${star}
-      </button>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <h3 style="margin:0;flex:1;">${highlight(title, q)}</h3>
+      <button
+        class="bm-btn"
+        data-bm="${key}"
+        aria-pressed="${isBm ? "true" : "false"}"
+        aria-label="${aria}"
+        title="${aria}"
+        style="border:0;background:none;font-size:18px;cursor:pointer;"
+      >${star}</button>
     </div>
     <p style="margin:6px 0 0 0;"><b>${highlight(company, q)}</b></p>
     <p style="margin:6px 0 0 0;color:#666;">${highlight(region, q)}</p>
@@ -125,46 +141,109 @@ function makeCard(job, q) {
 }
 
 // =====================
-// Windowed Render (DOM 최대 60개 유지)
+// Render Window (start/end 기반, 위/아래 이동 지원)
 // =====================
-function renderWindow(reset = false) {
+function renderWindow({ reset = false, scrollAdjust = 0 } = {}) {
   const container = document.getElementById("jobs-grid");
   const wrapper = document.getElementById("list-wrapper");
-  if (!container) return;
+  if (!container || !wrapper) return;
 
   const total = __currentFiltered.length;
-  const loadedCount = Math.min(currentPage * PAGE_SIZE, total);
-
-  const windowSize = PAGE_SIZE * WINDOW_PAGES; // 60개
-  const end = loadedCount;
-  const start = Math.max(0, end - windowSize);
 
   if (reset) {
-    container.innerHTML = "";
-    __renderStartIndex = start;
-    __renderEndIndex = start;
+    wrapper.scrollTop = 0;
   }
 
-  // ✅ 앞쪽 제거 (윈도우 유지) + 스크롤 점프 방지 보정
-  while (__renderStartIndex < start && container.firstChild) {
-    if (wrapper) {
-      const h = container.firstElementChild?.getBoundingClientRect().height ?? 0;
-      container.removeChild(container.firstChild);
-      wrapper.scrollTop -= h;
-    } else {
-      container.removeChild(container.firstChild);
-    }
-    __renderStartIndex++;
+  // 렌더
+  const frag = document.createDocumentFragment();
+  for (let i = __windowStart; i < __windowEnd; i++) {
+    frag.appendChild(makeCard(__currentFiltered[i], __currentQuery));
+  }
+  container.innerHTML = "";
+  container.appendChild(frag);
+
+  // 스크롤 보정 (앞에 붙이거나 앞을 제거했을 때 화면 점프 방지)
+  if (scrollAdjust !== 0) {
+    wrapper.scrollTop += scrollAdjust;
   }
 
-  // 뒤쪽 추가
-  for (let i = __renderEndIndex; i < end; i++) {
-    container.appendChild(makeCard(__currentFiltered[i], __currentQuery));
-    __renderEndIndex++;
-  }
-
-  // ✅ Showing은 "실제 DOM" 기준
   updateCount(container.children.length, total);
+}
+
+// 현재 DOM에서 맨 위에서 n개 높이 합
+function sumTopHeights(n) {
+  const container = document.getElementById("jobs-grid");
+  if (!container) return 0;
+  let sum = 0;
+  for (let i = 0; i < n && i < container.children.length; i++) {
+    sum += outerHeight(container.children[i]);
+  }
+  return sum;
+}
+
+// 새 DOM에서 맨 위에서 n개 높이 합 (render 후)
+function sumNewTopHeights(n) {
+  const container = document.getElementById("jobs-grid");
+  if (!container) return 0;
+  let sum = 0;
+  for (let i = 0; i < n && i < container.children.length; i++) {
+    sum += outerHeight(container.children[i]);
+  }
+  return sum;
+}
+
+function canShiftForward() {
+  return __windowEnd < __currentFiltered.length;
+}
+
+function canShiftBackward() {
+  return __windowStart > 0;
+}
+
+// 아래로: 윈도우를 PAGE_SIZE만큼 앞으로
+function shiftForward() {
+  if (!canShiftForward()) return;
+
+  const oldStart = __windowStart;
+  const oldEnd = __windowEnd;
+
+  const total = __currentFiltered.length;
+  const newEnd = Math.min(total, oldEnd + PAGE_SIZE);
+  const newStart = Math.max(0, newEnd - WINDOW_SIZE);
+
+  const removedCount = Math.max(0, newStart - oldStart);
+  const removedHeight = sumTopHeights(removedCount);
+
+  __windowStart = newStart;
+  __windowEnd = newEnd;
+
+  renderWindow({ reset: false, scrollAdjust: -removedHeight });
+}
+
+// 위로: 윈도우를 PAGE_SIZE만큼 뒤로
+function shiftBackward() {
+  if (!canShiftBackward()) return;
+
+  const oldStart = __windowStart;
+  const oldEnd = __windowEnd;
+
+  const total = __currentFiltered.length;
+
+  // end를 PAGE_SIZE만큼 뒤로 당기되, 최소 0 이상
+  const newEnd = Math.max(PAGE_SIZE, oldEnd - PAGE_SIZE);
+  const newStart = Math.max(0, newEnd - WINDOW_SIZE);
+
+  const addedCount = Math.max(0, oldStart - newStart);
+
+  __windowStart = newStart;
+  __windowEnd = Math.min(total, newEnd);
+
+  // 먼저 렌더하고, 새로 추가된 상단 높이만큼 scrollTop 내려서 “현재 보던 위치 유지”
+  renderWindow({ reset: false, scrollAdjust: 0 });
+  const addedHeight = sumNewTopHeights(addedCount);
+
+  const wrapper = document.getElementById("list-wrapper");
+  if (wrapper) wrapper.scrollTop += addedHeight;
 }
 
 // =====================
@@ -192,13 +271,20 @@ function wireBookmarkClicks() {
 
     saveBookmarks(bookmarks);
 
+    // 북마크만 보기에서 해제하면 목록에서 사라져야 함
     if (onlyBm && !bookmarks.has(key)) {
       applyFilters(true);
       return;
     }
 
-    btn.textContent = bookmarks.has(key) ? "★" : "☆";
+    const isBm = bookmarks.has(key);
+    btn.textContent = isBm ? "★" : "☆";
+    btn.setAttribute("aria-pressed", isBm ? "true" : "false");
+    const aria = isBm ? "북마크 해제" : "북마크 추가";
+    btn.setAttribute("aria-label", aria);
+    btn.setAttribute("title", aria);
 
+    // 상단 북마크 숫자만 갱신
     const line = document.getElementById("showing-line");
     if (line) {
       line.innerHTML = line.innerHTML.replace(
@@ -212,13 +298,12 @@ function wireBookmarkClicks() {
 // =====================
 // Filters + Sort
 // =====================
-function applyFilters(resetPage = true) {
+function applyFilters(reset = true) {
   const input = document.getElementById("search");
   const regionEl = document.getElementById("regionFilter");
   const typeEl = document.getElementById("typeFilter");
   const sortEl = document.getElementById("sortFilter");
   const bmEl = document.getElementById("onlyBookmarked");
-  const wrapper = document.getElementById("list-wrapper");
 
   const q = input?.value.trim().toLowerCase() || "";
   const onlyBm = bmEl?.checked;
@@ -230,10 +315,8 @@ function applyFilters(resetPage = true) {
   const typeNeedle = (typeMap[typeEl?.value ?? "all"] ?? "").toLowerCase();
 
   let filtered = __allJobs.filter(job => {
-    // ✅ 검색 (미리 만든 __searchText 사용)
     if (q && !job.__searchText?.includes(q)) return false;
 
-    // 지역
     if (regionNeedle) {
       const regionText = Array.isArray(job.workRgnNmLst)
         ? job.workRgnNmLst.join(" ").toLowerCase()
@@ -241,7 +324,6 @@ function applyFilters(resetPage = true) {
       if (!regionText.includes(regionNeedle)) return false;
     }
 
-    // 고용형태
     if (typeNeedle) {
       const typeText = Array.isArray(job.hireTypeNmLst)
         ? job.hireTypeNmLst.join(" ").toLowerCase()
@@ -252,12 +334,10 @@ function applyFilters(resetPage = true) {
     return true;
   });
 
-  // 북마크만
   if (onlyBm) {
     filtered = filtered.filter(job => bookmarks.has(getJobKey(job)));
   }
 
-  // 정렬
   if (sortEl?.value === "deadline") {
     filtered.sort((a, b) => {
       const ta = parseYmd(a.pbancEndYmd);
@@ -281,21 +361,20 @@ function applyFilters(resetPage = true) {
   __currentFiltered = filtered;
   __currentQuery = q;
 
-  if (resetPage) currentPage = 1;
-
-  // ✅ 필터 변경 시 인덱스 리셋(안전)
-  if (resetPage) {
-    __renderStartIndex = 0;
-    __renderEndIndex = 0;
+  // reset 시: 윈도우를 맨 앞에서 최대 60개로
+  if (reset) {
+    __windowStart = 0;
+    __windowEnd = Math.min(WINDOW_SIZE, __currentFiltered.length);
   }
 
-  if (wrapper && resetPage) wrapper.scrollTop = 0;
+  renderWindow({ reset: reset, scrollAdjust: 0 });
 
-  renderWindow(true);
+  // 필터 변경 후 IO 다시 세팅
+  setupIntersectionPaging();
 }
 
 // =====================
-// Wire UI (검색 디바운스 포함)
+// Wire UI
 // =====================
 function wireUI() {
   const input = document.getElementById("search");
@@ -321,28 +400,44 @@ function wireUI() {
 }
 
 // =====================
-// Infinite Scroll (컨테이너 스크롤 기반)
+// IntersectionObserver Paging (Top/Bottom)
 // =====================
-function wireInfiniteScroll() {
+function setupIntersectionPaging() {
   const wrapper = document.getElementById("list-wrapper");
-  if (!wrapper) return;
+  const topSentinel = document.getElementById("sentinel-top");
+  const bottomSentinel = document.getElementById("sentinel-bottom");
+  if (!wrapper || !topSentinel || !bottomSentinel) return;
 
-  wrapper.addEventListener("scroll", () => {
-    const total = __currentFiltered.length;
-    if (!total) return;
+  if (__io) __io.disconnect();
 
-    const nearBottom =
-      wrapper.scrollTop + wrapper.clientHeight >= wrapper.scrollHeight - 150;
-
-    if (!nearBottom) return;
-    if (currentPage * PAGE_SIZE >= total) return;
+  __io = new IntersectionObserver((entries) => {
     if (__isPaging) return;
 
-    __isPaging = true;
-    currentPage++;
-    renderWindow(false);
-    __isPaging = false;
-  }, { passive: true });
+    // entries는 순서 보장 X → id로 판단
+    const topHit = entries.some(e => e.target === topSentinel && e.isIntersecting);
+    const bottomHit = entries.some(e => e.target === bottomSentinel && e.isIntersecting);
+
+    if (bottomHit && canShiftForward()) {
+      __isPaging = true;
+      shiftForward();
+      __isPaging = false;
+      return;
+    }
+
+    if (topHit && canShiftBackward()) {
+      __isPaging = true;
+      shiftBackward();
+      __isPaging = false;
+      return;
+    }
+  }, {
+    root: wrapper,
+    rootMargin: "250px 0px", // 여유 있게 미리 트리거
+    threshold: 0
+  });
+
+  __io.observe(topSentinel);
+  __io.observe(bottomSentinel);
 }
 
 // =====================
@@ -368,7 +463,6 @@ async function loadJobs() {
 
     wireBookmarkClicks();
     wireUI();
-    wireInfiniteScroll();
 
     applyFilters(true);
   } catch (err) {

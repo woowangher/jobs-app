@@ -102,7 +102,7 @@ input:focus {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0; /* ✅ 중요: 내부 스크롤 가능하게 */
+  min-height: 0; /* ✅ 중요 */
 }
 
 #showing-line {
@@ -112,17 +112,23 @@ input:focus {
   padding-left: 4px;
 }
 
-/* ✅ 내부 스크롤은 #list-wrapper가 담당 */
+/* ✅ 내부 스크롤은 #list-wrapper */
 #list-wrapper {
   flex: 1;
-  min-height: 0;        /* ✅ 중요 */
-  overflow-y: auto;     /* ✅ 여기만 스크롤 */
+  min-height: 0;
+  overflow-y: auto;
   padding-right: 6px;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-/* ✅ #jobs-grid는 스크롤 제거 (렌더 컨테이너만) */
+/* sentinel */
+#sentinel-top,
+#sentinel-bottom {
+  height: 1px;
+}
+
+/* jobs grid */
 #jobs-grid {
   display: block;
 }
@@ -130,6 +136,7 @@ input:focus {
 /* =====================
    CARD STYLE
 ===================== */
+.job-card,
 #jobs-grid > div {
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -140,6 +147,7 @@ input:focus {
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+.job-card:hover,
 #jobs-grid > div:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
@@ -178,8 +186,18 @@ input:focus {
   transform: scale(1.2);
 }
 
+/* ✅ 접근성: 키보드 포커스 표시 */
+.bm-btn:focus-visible,
+#jobs-grid a:focus-visible,
+select:focus-visible,
+input[type="search"]:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
 /* =====================
-   SCROLLBAR (✅ list-wrapper로 이동)
+   SCROLLBAR
 ===================== */
 #list-wrapper::-webkit-scrollbar {
   width: 8px;
@@ -198,6 +216,7 @@ input:focus {
     grid-template-columns: 1fr;
   }
 
+  .job-card,
   #jobs-grid > div {
     padding: 12px;
   }
