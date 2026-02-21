@@ -583,6 +583,7 @@ function openModal(job) {
 
 
 function closeModal() {
+  console.log("closeModal CALLED v2026-02-21");
   const backdrop = document.getElementById("modalBackdrop");
   const modal = document.getElementById("jobModal");
 
@@ -826,6 +827,14 @@ async function registerSW() {
 // Wire UI (✅ 모달 닫힘 버그 수정 핵심 포함)
 // =====================
 function wireUI() {
+
+  // 🔒 Boot-time force hide (initially visible bug 방지)
+  document.getElementById("modalBackdrop")?.setAttribute("hidden", "");
+  document.getElementById("jobModal")?.setAttribute("hidden", "");
+  document.getElementById("modalBackdrop")?.classList.add("hidden");
+  document.getElementById("jobModal")?.classList.add("hidden");
+  document.getElementById("modalBackdrop")?.style && (document.getElementById("modalBackdrop").style.display = "none");
+  document.getElementById("jobModal")?.style && (document.getElementById("jobModal").style.display = "none");
   // tabs
   document.getElementById("tabAll")?.addEventListener("click", () => setView("all"));
   document.getElementById("tabBookmarks")?.addEventListener("click", () => setView("bookmarks"));
@@ -1006,7 +1015,7 @@ async function loadJobs() {
 // =====================
 (async function boot() {
   renderRecentSearches();
-  await registerSW();
+  //await registerSW(); 임시!!!!!!!!!!!!!
   wireUI();
   await loadJobs();
 
