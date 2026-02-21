@@ -430,7 +430,6 @@ function shiftBackward() {
 
   renderWindow({ reset: false, scrollAdjust: 0 });
 
-  // 새로 위에 추가된 만큼 scroll 유지
   const addedHeight = sumTopHeights(addedCount);
   const wrapper = document.getElementById("list-wrapper");
   if (wrapper) wrapper.scrollTop += addedHeight;
@@ -486,7 +485,6 @@ function toggleBookmark(job) {
 
   renderWindow({ reset: false, scrollAdjust: 0 });
 
-  // 모달 열려있으면 버튼/입력 상태 갱신
   if (__modalJob) openModal(__modalJob);
 }
 
@@ -514,7 +512,12 @@ function openModal(job) {
   const body = document.getElementById("modalBody");
   const titleEl = document.getElementById("modalTitle");
 
-  if (!backdrop || !modal || !body || !titleEl) return;
+  // ✅ 여기서 return하면 isModalOpen이 true로 고정되므로 반드시 되돌림!
+  if (!backdrop || !modal || !body || !titleEl) {
+    isModalOpen = false;
+    __modalJob = null;
+    return;
+  }
 
   const key = getJobKey(job);
   const bm = __bookmarks[key];
@@ -568,9 +571,13 @@ function openModal(job) {
 function closeModal() {
   const backdrop = document.getElementById("modalBackdrop");
   const modal = document.getElementById("jobModal");
+
   if (backdrop) backdrop.hidden = true;
   if (modal) modal.hidden = true;
+
   __modalJob = null;
+
+  // ✅ 같은 클릭 흐름에서 grid 클릭이 다시 openModal을 부르는 걸 막기 위해 "다음 tick"에 해제
   setTimeout(() => { isModalOpen = false; }, 0);
 }
 
@@ -823,8 +830,8 @@ function wireUI() {
   // cards: open modal on click/enter
   const grid = document.getElementById("jobs-grid");
   grid?.addEventListener("click", (e) => {
-    // ✅ 모달이 열려있으면 grid 클릭 무시 (뒤로 전파되는 케이스 방지)
-    if (__modalJob) return;
+    // ✅ 모달 열려있거나 닫히는 중이면 grid 클릭 무시 (재오픈 방지)
+    if (isModalOpen) return;
 
     const bmBtn = e.target.closest(".bm-btn");
     if (bmBtn) {
@@ -844,7 +851,7 @@ function wireUI() {
 
   grid?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
-    if (__modalJob) return;
+    if (isModalOpen) return;
     const card = e.target.closest(".job-card");
     if (!card) return;
     const key = card.dataset.key;
@@ -852,12 +859,13 @@ function wireUI() {
     if (job) openModal(job);
   });
 
-  // ✅ 모달 자체 클릭은 아래로 전파 차단 (핵심)
+  // ✅ 모달 내부 클릭은 아래로 전파 차단
   document.getElementById("jobModal")?.addEventListener("click", (e) => {
     e.stopPropagation();
-  });
+    e.stopImmediatePropagation();
+  }, true);
 
-  // modal controls
+  // modal controls (✅ 캡처 + 즉시 전파 차단)
   document.getElementById("btnCloseModal")?.addEventListener(
     "click",
     (e) => {
@@ -869,13 +877,22 @@ function wireUI() {
     true
   );
 
-  document.getElementById("modalBackdrop")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    closeModal();
-  });
+  document.getElementById("modalBackdrop")?.addEventListener(
+    "click",
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      closeModal();
+    },
+    true
+  );
 
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
+    if (e.key === "Escape" && isModalOpen) {
+      e.preventDefault();
+      closeModal();
+    }
   });
 
   document.getElementById("btnToggleBookmark")?.addEventListener("click", (e) => {
