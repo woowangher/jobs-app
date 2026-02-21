@@ -53,9 +53,16 @@
             <option value="latest">Latest (newest)</option>
           </select>
         </div>
+
+        <div class="field field-tight">
+          <label class="sr-only" for="btnToggleFilters">Filters</label>
+          <button id="btnToggleFilters" class="btn btn-ghost" type="button" aria-expanded="false">
+            필터 펼치기
+          </button>
+        </div>
       </div>
 
-      <div class="filter-row">
+      <div class="filter-row" id="advancedFilters">
         <fieldset class="fieldset">
           <legend>Region</legend>
           <label class="chk"><input type="checkbox" name="region" value="서울">서울</label>

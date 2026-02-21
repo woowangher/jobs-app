@@ -550,21 +550,81 @@ function wireUI() {
   document.getElementById("tabAll")?.addEventListener("click", () => { setView("all"); applyFiltersAndRender(); });
   document.getElementById("tabBookmarks")?.addEventListener("click", () => { setView("bookmarks"); applyFiltersAndRender(); });
 
-  // reset
-  document.getElementById("btnReset")?.addEventListener("click", () => {
-    localStorage.removeItem(UI_STATE_KEY);
-    setView("all");
+  // ✅ Mobile filter toggle (접기/펼치기)
+  const btnToggleFilters = document.getElementById("btnToggleFilters");
+  const filtersSection = document.querySelector(".filters");
+  const advanced = document.getElementById("advancedFilters");
 
-    document.getElementById("search").value = "";
-    document.getElementById("sortFilter").value = "default";
-    document.querySelectorAll(`input[type="checkbox"][name="region"]`).forEach(n => n.checked = false);
-    document.querySelectorAll(`input[type="checkbox"][name="type"]`).forEach(n => n.checked = false);
-    document.getElementById("onlyOpen").checked = false;
-    document.getElementById("due7").checked = false;
-    document.getElementById("onlyToday").checked = false;
+  function setFiltersOpen(open) {
+    if (!filtersSection || !btnToggleFilters) return;
+    filtersSection.classList.toggle("is-open", open);
+    btnToggleFilters.setAttribute("aria-expanded", open ? "true" : "false");
+    btnToggleFilters.textContent = open ? "필터 접기" : "필터 펼치기";
+  }
 
-    applyFiltersAndRender();
+  // 모바일에서는 기본 닫힘, 데스크탑에서는 열림 느낌 유지
+  function syncFiltersDefault() {
+    const isMobile = window.matchMedia("(max-width: 700px)").matches;
+    setFiltersOpen(!isMobile); // 모바일 닫힘, 데스크탑 열림
+  }
+
+  btnToggleFilters?.addEventListener("click", () => {
+    const isOpen = filtersSection?.classList.contains("is-open");
+    setFiltersOpen(!isOpen);
   });
+
+  // 화면 회전/리사이즈 대응
+  window.addEventListener("resize", () => {
+    // 너무 자주 호출 방지(가벼운 debounce)
+    clearTimeout(syncFiltersDefault.__t);
+    syncFiltersDefault.__t = setTimeout(syncFiltersDefault, 100);
+  });
+
+  // 최초 1회
+  syncFiltersDefault();
+
+  // ✅ Reset (document click delegation - capture)
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("#btnReset");
+    if (!btn) return;
+
+    e.preventDefault();
+
+    try {
+      console.log("[UI] reset clicked");
+
+      localStorage.removeItem(UI_STATE_KEY);
+      setView("all");
+
+      const search = document.getElementById("search");
+      if (search) {
+       search.value = "";
+        search.blur();
+      }
+
+      const sort = document.getElementById("sortFilter");
+      if (sort) sort.value = "default";
+
+      document.querySelectorAll(`input[type="checkbox"][name="region"]`).forEach(n => (n.checked = false));
+      document.querySelectorAll(`input[type="checkbox"][name="type"]`).forEach(n => (n.checked = false));
+
+      const onlyOpen = document.getElementById("onlyOpen");
+      const due7 = document.getElementById("due7");
+      const onlyToday = document.getElementById("onlyToday");
+      if (onlyOpen) onlyOpen.checked = false;
+      if (due7) due7.checked = false;
+      if (onlyToday) onlyToday.checked = false;
+
+      closeModal();
+      const wrapper = document.getElementById("list-wrapper");
+      if (wrapper) wrapper.scrollTop = 0;
+
+      applyFiltersAndRender();
+    } catch (err) {
+     console.error("[UI] reset failed:", err);
+      alert("초기화 중 오류가 발생했어요. 콘솔을 확인해줘!");
+    }
+  }, true);
 
   // filters
   let debounce = null;
