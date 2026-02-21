@@ -102,6 +102,7 @@ input:focus {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0; /* ✅ 중요: 내부 스크롤 가능하게 */
 }
 
 #showing-line {
@@ -111,11 +112,19 @@ input:focus {
   padding-left: 4px;
 }
 
-/* 내부 스크롤 영역 */
-#jobs-grid {
+/* ✅ 내부 스크롤은 #list-wrapper가 담당 */
+#list-wrapper {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;        /* ✅ 중요 */
+  overflow-y: auto;     /* ✅ 여기만 스크롤 */
   padding-right: 6px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ✅ #jobs-grid는 스크롤 제거 (렌더 컨테이너만) */
+#jobs-grid {
+  display: block;
 }
 
 /* =====================
@@ -170,13 +179,13 @@ input:focus {
 }
 
 /* =====================
-   SCROLLBAR
+   SCROLLBAR (✅ list-wrapper로 이동)
 ===================== */
-#jobs-grid::-webkit-scrollbar {
+#list-wrapper::-webkit-scrollbar {
   width: 8px;
 }
 
-#jobs-grid::-webkit-scrollbar-thumb {
+#list-wrapper::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 10px;
 }

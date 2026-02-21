@@ -126,6 +126,7 @@ function makeCard(job, q) {
 // =====================
 function renderWindow(reset = false) {
   const container = document.getElementById("jobs-grid");
+  const wrapper = document.getElementById("list-wrapper");
   if (!container) return;
 
   const total = __currentFiltered.length;
@@ -141,9 +142,15 @@ function renderWindow(reset = false) {
     __renderEndIndex = start;
   }
 
-  // 앞쪽 제거 (윈도우 유지)
+  // ✅ 앞쪽 제거 (윈도우 유지) + 스크롤 점프 방지 보정
   while (__renderStartIndex < start && container.firstChild) {
-    container.removeChild(container.firstChild);
+    if (wrapper) {
+      const h = container.firstElementChild?.getBoundingClientRect().height ?? 0;
+      container.removeChild(container.firstChild);
+      wrapper.scrollTop -= h; // ✅ 제거한 만큼 스크롤 보정
+    } else {
+      container.removeChild(container.firstChild);
+    }
     __renderStartIndex++;
   }
 
@@ -153,7 +160,8 @@ function renderWindow(reset = false) {
     __renderEndIndex++;
   }
 
-  updateCount(loadedCount, total);
+  // ✅ Showing은 "실제 DOM" 기준 (60 유지면 60으로 보임)
+  updateCount(container.children.length, total);
 }
 
 // =====================
@@ -326,7 +334,7 @@ function wireInfiniteScroll() {
 
     currentPage++;
     renderWindow(false);
-  });
+  }, { passive: true });
 }
 
 // =====================
@@ -344,9 +352,6 @@ async function loadJobs() {
 
     const jobs = payload.data?.result || [];
     __allJobs = jobs;
-
-    // ✅ 중요: index.html의 #list-wrapper/#jobs-grid 구조를 "지우지 말 것"
-    // root.innerHTML = ... 절대 하지 않음
 
     wireBookmarkClicks();
     wireUI();
